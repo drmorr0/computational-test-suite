@@ -1,0 +1,3 @@
+$cmd_string = "blah %s %% <word1|word2> -[asdf]";
+$num_tests_per = 30;
+1;

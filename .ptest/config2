@@ -1,0 +1,5 @@
+$base_dir = "/home/david/tmp/ptest";
+$inst_dir = "-1";
+$data_dir = "/home/david/tmp/ptest/test";
+$exec_dir = "/home/david/tmp/ptest/test";
+$exec = "test.pl";

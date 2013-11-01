@@ -33,7 +33,7 @@ our @substitutions = (
 
 our @hook_help_strings = ();
 
-our ($cmd_string, $internal_cmd_string, $num_tests_per);
+our ($cmd_string, $internal_cmd_string, $num_tests_per, $label_string);
 our @cmd_subs;
 
 # Populate the @task_list array with all of the commands we're going to run (in however many
@@ -42,7 +42,7 @@ sub setup_cmds
 {
 	# process_hooks('pre_cmd');
 	
-	$cmd_string = ''; $num_tests_per = -1;
+	$cmd_string = ''; $label_string = ''; $num_tests_per = -1;
 	# Read in a command from the specified command file
 	if (-e "$config_dir/$cmd_file")
 	{
@@ -51,7 +51,7 @@ sub setup_cmds
 		require "$config_dir/$cmd_file";
 	}
 	make_cmd($cmd_string);
-
+	$label_string = 'job___ID__';  # TODO
 
 	# This complicated bit of logic iteratively looks through the specified command string and
 	# fills in all the different possible combinations of values.  It starts with the un-substituted
@@ -88,9 +88,8 @@ sub setup_cmds
 		}
 	}
 
-	# Next we duplicate our commands and fill in the instance names and seeds
-	my $num_tasks = $#task_list;
-	foreach my $i (0 .. $num_tasks)
+	# Fill in the instance names for each of the tasks
+	foreach (0 .. $#task_list)
 	{
 		my $task_string = shift @task_list;
 		if ($task_string =~ /__INSTANCE__/)
@@ -99,18 +98,31 @@ sub setup_cmds
 				{ print "No instances available.  Aborting.\n"; exit; }
 
 			foreach my $inst (@inst_list)
-				{ $task_string =~ s/__INSTANCE__/$inst_dir\/$inst/g; }
-		}
-
-		if ($task_string =~ /__SEED__/)
-		{
-			foreach my $i (1 .. $num_tests_per)
-			{
-				my $task = $task_string;
-				my $seed = get_seed();
-				$task =~ s/__SEED__/$seed/g;
-				push @task_list, $task;
+			{ 
+				my $local_task_string = $task_string;
+				$local_task_string =~ s|__INSTANCE__|$inst_dir/$inst|g; 
+				push @task_list, $local_task_string;
 			}
+		}
+	}
+
+	# Fill in the random seeds and duplicates for each of the tasks
+	my $id = 0;
+	foreach (0 .. $#task_list)
+	{
+		my $task_string = shift @task_list;
+		foreach (1 .. $num_tests_per)
+		{
+			if ($task_string =~ /__SEED__/)
+			{
+				my $local_task_string = $task_string;
+				my $seed = get_seed();
+				$local_task_string =~ s/__SEED__/$seed/g;
+				push @task_list, $local_task_string;
+			}
+			my $label = $label_string; $label =~ s/__ID__/$id/g;  # TODO
+			push @task_labels, $label;
+			$id++;
 		}
 	}
 
@@ -137,12 +149,12 @@ CMD_INPUT:
 		$cmd_string = <STDIN>; trim $cmd_string;
 		$save_changes = 1;
 
-		if ($cmd_string eq '?') { print_help_string(); goto TOP; }
+		if ($cmd_string eq '?') { print_help_string(); goto CMD_INPUT; }
 		elsif ($cmd_string eq 'q') { exit; }
 	}
 	else
 	{
-		my $key = prompt("Using command string:\n  ".$cmd_string."\nOk?", qw(y n q));
+		my $key = prompt("Using command string:\n  $exec $cmd_string.\nOk?", qw(y n q));
 		if ($key eq 'n') { goto CMD_INPUT; }
 		elsif ($key eq 'q') { exit; }
 	}
@@ -159,7 +171,7 @@ CMD_INPUT:
 	{
 		while ($internal_cmd_string =~ s/$substitutions[$i][0]/$marker/)
 		{
-			if (not $substitutions[$i][1]($1)) { goto TOP; }
+			if (not $substitutions[$i][1]($1)) { goto CMD_INPUT; }
 			$ind += 1; $marker = '__'.$ind.'__';
 		}
 	}

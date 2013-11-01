@@ -29,8 +29,10 @@ use Getopt::Std;
 
 use init;
 use cmd;
+use run;
 use cleanup;
 use util;
+use Cwd;
 
 ($base_dir, $inst_dir, $data_dir, $exec_dir, $exec) = ('', '', '', '', '');
 
@@ -41,7 +43,8 @@ $config_dir = $args{'d'} ? $args{'d'} : ".ptest";
 $cmd_file = $args{'x'} ? $args{'x'} : "command";
 
 $inst_file = $ARGV[0] ? $ARGV[0] : '';
-#initialize($config_dir, $config_file);
+initialize($config_dir, $config_file);
 setup_cmds();
-#cleanup();
+run();
+cleanup();
 

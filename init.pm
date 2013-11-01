@@ -5,7 +5,7 @@
 # This is the first major component of my experiment-testing framework.  It handles all of the
 # initialization stuff.  It first sets up all of the directories and paths (including the path to
 # the executable, the directory we want data stored in, the location of the problem instances -- if
-# they exist).  Then it creates the initial file structure ($readme file describing the experiments,
+# they exist).  Then it creates the initial file structure (README file describing the experiments,
 # DATA.csv file for outputting data, etc.)
 #
 
@@ -51,17 +51,16 @@ sub initialize
 		print "6 - Number of threads: $num_threads\n";
 
 		my @commands = qw(q 1 2 3 4 5 6);
-		if ($base_dir ne '' && $inst_dir ne '' && $data_dir ne '' && $exec_dir ne '' && $exec ne ''
-			&& check_git())
+		if ($base_dir ne '' && $inst_dir ne '' && $data_dir ne '' && $exec_dir ne '' && $exec ne '')
 			{ unshift @commands, qw(y s); }
 		else { $config_changed = 1; }
-		my $key = prompt("Does this look correct?", @commands);
+		my $key = prompt("Do these settings look correct?", @commands);
 
 		# If we make modifications, record the configuration as changing
 		if ($key =~ /[123456]/) { $config_changed = 1; }
 
-		if    ($key eq 'y') { last; }
-		elsif ($key eq 's') { $config_changed = 1; last; }
+		if    ($key eq 'y' && check_git()) { last; }
+		elsif ($key eq 's' && check_git()) { $config_changed = 1; last; }
 		elsif ($key eq 'q') { print "Quitting.\n"; exit; }
 		elsif ($key eq '1') 
 		{ 
@@ -103,7 +102,7 @@ sub initialize
 	while (<>) { $annotation .= "  $_"; }
 	print "\n";
 
-	init_readme_file($annotation);
+	init_readme_and_data_files($annotation);
 
 	load_instances();
 
@@ -125,7 +124,7 @@ sub load_instances
 		{ 
 			my @inst_line = split /,/;
 			push @inst_list, $inst_line[0];
-			push @data, [ @inst_line[1 .. -1] ];
+			# TODO push @data, [ @inst_line[1 .. -1] ];
 		}
 		close INST;
 	}
@@ -146,30 +145,31 @@ ALL_FILES:
 	}
 }
 
-sub init_readme_file
+sub init_readme_and_data_files
 {
 	my $annotation = shift;
 	my $time = localtime;
 
-	open $readme, ">>$exp_dir/$readme_name";
-	print $readme "----------------------------------------------------------------------\n";
-	print $readme "New experiment beginning on $time\n";
-	print $readme "Experiment name: $exp_name\n";
-	print $readme "Experiment description:\n$annotation\n\n";
+	open $readmefp, ">>$exp_dir/$readme_name";
+	print $readmefp "----------------------------------------------------------------------\n";
+	print $readmefp "New experiment beginning on $time\n";
+	print $readmefp "Experiment name: $exp_name\n";
+	print $readmefp "Experiment description:\n$annotation\n\n";
 
-	print $readme "Executable information:\n";
-	print $readme "  path: $exec_dir/$exec\n";
+	print $readmefp "Executable information:\n";
+	print $readmefp "  path: $exec_dir/$exec\n";
 	chdir $exec_dir; my $gitlog = `git log -1 2>&1`; chdir $base_dir;
 	$gitlog =~ s/^/    /gm;
-	print $readme "  git commit info: ";
-	if ($gitlog =~ /^fatal/) { print $readme "(no git repository detected)\n"; }
-	else { print $readme "\n$gitlog\n"; }
+	print $readmefp "  git commit info: ";
+	if ($gitlog =~ /^fatal/) { print $readmefp "(no git repository detected)\n"; }
+	else { print $readmefp "\n$gitlog\n"; }
 	print "\n";
 
-	print $readme "Running on instances from $inst_dir\n";
-	print $readme "Saving data to $exp_dir\n";
-	print $readme "----------------------------------------------------------------------\n";
+	print $readmefp "Running on instances from $inst_dir\n";
+	print $readmefp "Saving data to $exp_dir\n";
+	print $readmefp "----------------------------------------------------------------------\n";
 
+	open $datafp, ">>$exp_dir/$data_name";
 }
 
 # Write out the current configuration to a file
@@ -249,7 +249,7 @@ sub set_data_dir
 	if (!create_dir($data_dir)) { $data_dir = ''; return 0; }
 	if (not -w $data_dir) 
 		{ print "Cannot write to data dir $data_dir\n"; $data_dir = ''; return 0; }
-	
+
 	return 1;
 }
 
@@ -297,7 +297,8 @@ sub check_git
 	my $gitstatus = `git status -s 2>&1`;
 	if ($gitstatus =~ /^fatal/)
 	{
-	   	my $key = prompt("No git repository detected in $exec_dir.  Continue? ", qw(y n q));
+	   	my $key = prompt("\n**********\nWARNING: No git repository detected in $exec_dir.\n".
+			"**********\n\nContinue? ", qw(y n q));
 		if ($key eq 'n') { $exec_dir = ''; return 0; }
 		elsif ($key eq 'q') { exit; }
 	}
@@ -306,13 +307,14 @@ sub check_git
 		print "\ngit repository status of $exec_dir:\n$gitstatus\n";
 		if ($gitstatus =~ m/^ ?[AMDRCU]\s+/m)
 		{
-			my $key = prompt("Changes must be committed before experiments begin.  Proceed? ",
-				qw(y q));
+			my $key = prompt("\n**********\nERROR: Changes must be committed before experiments ".
+				"begin.\n**********\n\nProceed? ", qw(y q));
 			print "Commiting all changes.  Enter a commit message: ";
 			my $message = <STDIN>; trim $message;
 			if ($key eq 'q') { exit; }
 			else { print `git commit -a -m \"$message\"`; }
 		}
+		elsif (prompt('Ok? ', qw(y q)) eq 'q') { exit; }
 	}
 
 	return 1;

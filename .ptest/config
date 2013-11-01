@@ -1,7 +1,0 @@
-$base_dir = "/home/david/tmp/ptest";
-$inst_dir = "/home/david/tmp/ptest/test";
-$data_dir = "/home/david/tmp/ptest/test";
-$exec_dir = "/home/david/tmp/ptest/test";
-$exec = "test.pl";
-$num_threads = 4;
-1;

@@ -10,6 +10,7 @@
 use warnings;
 use strict;
 use util;
+use Smart::Match;
 
 # each substitution needs
 #  1) a regex to search for in the input string
@@ -209,11 +210,13 @@ sub print_help_string
 # Default handlers - escape sequences, we accept %s (random seed), %i (instance), and %% (%)
 sub percent_sub
 {
-	(print "Unrecognized escape sequence %$_[0].\n" and return 0) unless $_[0] ~~ %esc_chars;
+	my $char = $_[0];
+	(print "Unrecognized escape sequence %$char.\n" and return 0)
+   		unless any { $_ eq $char } %esc_chars;
 
-	if ($_[0] eq 's') { push @cmd_subs, '__SEED__'; }
-	if ($_[0] eq 'i') { push @cmd_subs, '__INSTANCE__'; }
-	if ($_[0] eq '%') { push @cmd_subs, '%'; }
+	if ($char eq 's') { push @cmd_subs, '__SEED__'; }
+	if ($char eq 'i') { push @cmd_subs, '__INSTANCE__'; }
+	if ($char eq '%') { push @cmd_subs, '%'; }
 
 	return 1;
 }

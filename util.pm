@@ -37,7 +37,7 @@ sub prompt
 		local $, = '/';
 		print "$query ["; print @commands; print "] ";
 		$key = <STDIN>; trim $key;
-		if ($key ~~ @commands) { return $key; }
+		if (any { $_ eq $key } @commands) { return $key; }
 		else { print "Unrecognized command.\n"; }
 	} 
 }

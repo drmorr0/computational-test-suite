@@ -27,9 +27,10 @@ use strict;
 
 use File::Basename;
 use Getopt::Std;
-use Cwd;
+use Cwd 'abs_path';
 
-use lib dirname(__FILE__);
+# Include the other modules in this directory regardless of where we run from
+use lib dirname(abs_path(__FILE__));
 
 use init;
 use cmd;
@@ -40,7 +41,8 @@ use util;
 ($base_dir, $inst_dir, $data_dir, $exec_dir, $exec) = ('', '', '', '', '');
 
 my %args;
-getopts('c:d:x:', \%args);
+getopts('c:d:x:h', \%args);
+if ($args{'h'}) { usage() and exit; }
 $config_file = $args{'c'} ? $args{'c'} : "config";
 $config_dir = $args{'d'} ? $args{'d'} : ".ptest";
 $cmd_file = $args{'x'} ? $args{'x'} : "command";
@@ -50,4 +52,17 @@ initialize($config_dir, $config_file);
 setup_cmds();
 run();
 cleanup();
+
+sub usage
+{
+	my $exec = basename($0);
+	print "usage: $exec -cdxh [instance_list]\n";
+	print "\t-c: Config file name (default config)\n";
+	print "\t-d: Config file directory (default .ptest)\n";
+	print "\t-x: Execution command file (default command)\n";
+	print "\t-h: Display help message\n";
+}
+
+
+
 

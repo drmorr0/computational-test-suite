@@ -51,7 +51,7 @@ sub setup_cmds
 		require "$config_dir/$cmd_file";
 	}
 	make_cmd($cmd_string);
-	$label_string = 'job___ID__';  # TODO
+	$label_string = 'job-__ID__';  # TODO
 
 	# This complicated bit of logic iteratively looks through the specified command string and
 	# fills in all the different possible combinations of values.  It starts with the un-substituted

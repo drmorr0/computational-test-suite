@@ -25,14 +25,17 @@
 use warnings;
 use strict;
 
+use File::Basename;
 use Getopt::Std;
+use Cwd;
+
+use lib dirname(__FILE__);
 
 use init;
 use cmd;
 use run;
 use cleanup;
 use util;
-use Cwd;
 
 ($base_dir, $inst_dir, $data_dir, $exec_dir, $exec) = ('', '', '', '', '');
 

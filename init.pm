@@ -59,8 +59,8 @@ sub initialize
 		# If we make modifications, record the configuration as changing
 		if ($key =~ /[123456]/) { $config_changed = 1; }
 
-		if    ($key eq 'y' && check_git()) { last; }
-		elsif ($key eq 's' && check_git()) { $config_changed = 1; last; }
+		if    ($key eq 'y') { last; }
+		elsif ($key eq 's') { $config_changed = 1; last; }
 		elsif ($key eq 'q') { print "Quitting.\n"; exit; }
 		elsif ($key eq '1') 
 		{ 
@@ -76,6 +76,7 @@ sub initialize
 
 	chdir $base_dir;
 	if ($config_changed) { save_init(); }
+	check_git();
 
 	while (1)
 	{
@@ -83,14 +84,21 @@ sub initialize
 		$exp_name = <STDIN>; trim $exp_name;
 		$exp_dir = "$data_dir/$exp_name"; 
 
-		if (-e "$exp_dir")
+		if (-e "$exp_dir/$readme_name")
 		{
 			my $key = prompt("An experiment with this name already exists.  Continue? ", 
 				qw(y n q));
 			if ($key eq 'y') { last; }
 			elsif ($key eq 'q') { exit; }
 		}
-		else 
+		elsif (-e $exp_dir)
+		{
+			my $key = prompt("A directory with this name exists, but it doesn't look like an ".
+				"experiment.  Continue? ", qw(y n q));
+			if ($key eq 'y') { last; }
+			elsif ($key eq 'q') { exit; }
+		}
+		else
 		{ 
 			mkdir "$exp_dir" or (print "Could not create $exp_dir: $!\n" and next);
 			last; 
@@ -99,12 +107,12 @@ sub initialize
 
 	print "Enter a short description of this experiment: (Ctrl-D to end)\n";
 	my $annotation = '';
-	while (<>) { $annotation .= "  $_"; }
+	while (<STDIN>) { $annotation .= "  $_"; }
 	print "\n";
 
-	init_readme_and_data_files($annotation);
-
 	load_instances();
+
+	init_readme_and_data_files($annotation);
 
 	# process_hooks('post_init');
 }
@@ -116,14 +124,19 @@ sub load_instances
 	# Use double-braces to make last work
 	if ($inst_file ne '')
 	{
-		open INST, "$inst_dir/$inst_file" or 
-			(print "WARNING: could not open $inst_dir/$inst_file ($!).  ".
-				"Running on all files in $inst_dir.\n" and $inst_file = '' and goto ALL_FILES);
+		if (not open INST, getcwd()."/$inst_file")
+		{
+			print "WARNING: could not open $inst_file ($!).\n";
+			my $key = prompt("Continue on all files in $inst_dir? ", qw(y q));
+			if ($key eq 'y') { $inst_file = ''; goto ALL_FILES; }
+			else { exit; }
+		}
 
 		while (<INST>) 
 		{ 
 			my @inst_line = split /,/;
-			push @inst_list, $inst_line[0];
+			my $inst_name = $inst_line[0]; chomp $inst_name;
+			push @inst_list, $inst_name;
 			# TODO push @data, [ @inst_line[1 .. -1] ];
 		}
 		close INST;
@@ -132,6 +145,7 @@ sub load_instances
 	else
 	{
 ALL_FILES:
+		$inst_file = '';		# Clear out the inst_file name, in case it couldn't be read
 		opendir INST_DIR, $inst_dir or 
 			(print "Could not read directory $inst_dir ($!).  Aborting.\n" and exit);
 
@@ -150,7 +164,8 @@ sub init_readme_and_data_files
 	my $annotation = shift;
 	my $time = localtime;
 
-	open $readmefp, ">>$exp_dir/$readme_name";
+	open $readmefp, ">>$exp_dir/$readme_name" or 
+		die("Could not open $exp_dir/$readme_name for writing ($!)\n");
 	print $readmefp "----------------------------------------------------------------------\n";
 	print $readmefp "New experiment beginning on $time\n";
 	print $readmefp "Experiment name: $exp_name\n";
@@ -293,14 +308,14 @@ sub set_num_threads
 
 sub check_git
 {
+	my $current_dir = getcwd();
 	chdir $exec_dir;
-	my $gitstatus = `git status -s 2>&1`;
+	my $gitstatus = `git status -s -b 2>&1`;
 	if ($gitstatus =~ /^fatal/)
 	{
 	   	my $key = prompt("\n**********\nWARNING: No git repository detected in $exec_dir.\n".
-			"**********\n\nContinue? ", qw(y n q));
-		if ($key eq 'n') { $exec_dir = ''; return 0; }
-		elsif ($key eq 'q') { exit; }
+			"**********\n\nContinue? ", qw(y q));
+		if ($key eq 'q') { exit; }
 	}
 	else
 	{
@@ -309,13 +324,17 @@ sub check_git
 		{
 			my $key = prompt("\n**********\nERROR: Changes must be committed before experiments ".
 				"begin.\n**********\n\nProceed? ", qw(y q));
-			print "Commiting all changes.  Enter a commit message: ";
-			my $message = <STDIN>; trim $message;
 			if ($key eq 'q') { exit; }
-			else { print `git commit -a -m \"$message\"`; }
+			else
+			{
+				print "Commiting all changes.  Enter a commit message: ";
+				my $message = <STDIN>; trim $message;
+				print `git commit -a -m \"$message\"`; 
+			}
 		}
 		elsif (prompt('Ok? ', qw(y q)) eq 'q') { exit; }
 	}
+	chdir $current_dir;
 
 	return 1;
 }

@@ -4,6 +4,7 @@ package util;
 use strict;
 use warnings;
 use Exporter;
+use List::Util 'first';
 
 our @ISA = 'Exporter';
 our @EXPORT = qw($config_dir $config_file $base_dir $inst_dir $data_dir $exec_dir $exec $exp_name 
@@ -13,8 +14,8 @@ our @EXPORT = qw($config_dir $config_file $base_dir $inst_dir $data_dir $exec_di
 our ($config_dir, $config_file, $cmd_file);
 our ($base_dir, $inst_dir, $inst_file, @inst_list, $data_dir, $exec_dir, $exec);
 our ($exp_name, $exp_dir, $num_exp);
-our $readme_name = 'README';
-our $data_name = 'DATA';
+our $readme_name = 'README.ptest';
+our $data_name = 'DATA.ptest';
 our ($readmefp, $datafp);
 our $num_threads = 1;
 our (@task_list, @task_labels, %data);
@@ -37,7 +38,7 @@ sub prompt
 		local $, = '/';
 		print "$query ["; print @commands; print "] ";
 		$key = <STDIN>; trim $key;
-		if (any { $_ eq $key } @commands) { return $key; }
+		if (first { $_ eq $key } @commands) { return $key; }
 		else { print "Unrecognized command.\n"; }
 	} 
 }

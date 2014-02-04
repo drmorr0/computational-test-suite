@@ -34,6 +34,10 @@ sub run
 		print $readmefp "[job $id] Starting `$exec $cmd` ($start_time)\n";
 		flock $readmefp, LOCK_UN;
 
+		flock STDOUT, LOCK_EX;
+		print "Staring $id: $exec $cmd\n";
+		flock STDOUT, LOCK_UN;
+
 		my $output = `$exec_dir/$exec $cmd\n`;
 
 		# Write the raw output to a file

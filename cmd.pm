@@ -10,7 +10,7 @@
 use warnings;
 use strict;
 use util;
-use Smart::Match;
+use List::Util 'first';
 
 # each substitution needs
 #  1) a regex to search for in the input string
@@ -52,7 +52,8 @@ sub setup_cmds
 		require "$config_dir/$cmd_file";
 	}
 	make_cmd($cmd_string);
-	$label_string = 'job-__ID__';  # TODO
+	$label_string = '__INSTANCE__.__ID__';  # TODO
+	print $internal_cmd_string . "\n";
 
 	# This complicated bit of logic iteratively looks through the specified command string and
 	# fills in all the different possible combinations of values.  It starts with the un-substituted
@@ -101,27 +102,47 @@ sub setup_cmds
 			foreach my $inst (@inst_list)
 			{ 
 				my $local_task_string = $task_string;
-				$local_task_string =~ s|__INSTANCE__|$inst_dir/$inst|g; 
+				my @matching_instance_names = <"$inst_dir/$inst.*">;
+				if (@matching_instance_names > 1)
+				{ 
+					print "WARNING: More than one instance file matches $inst in $inst_dir.  ".
+						"Using $matching_instance_names[0].\n"
+				}
+				elsif (@matching_instance_names == 0)
+				{
+					print "WARNING: Could not find file matching $inst in $inst_dir; ignoring.\n";
+					next;
+				}
+				$local_task_string =~ s|__INSTANCE__|$matching_instance_names[0]|g; 
 				push @task_list, $local_task_string;
+
+				# Start setting up the label for the output file
+				my $label = $label_string; $label =~ s/__INSTANCE__/$inst/g;
+				push @task_labels, $label;
 			}
 		}
 	}
 
 	# Fill in the random seeds and duplicates for each of the tasks
 	my $id = 0;
+	my $total_num_tests = $#task_list * $num_tests_per;
+	my $id_length = length($total_num_tests);
 	foreach (0 .. $#task_list)
 	{
 		my $task_string = shift @task_list;
+		my $label = shift @task_labels;
 		foreach (1 .. $num_tests_per)
 		{
+			my $local_task_string = $task_string;
 			if ($task_string =~ /__SEED__/)
 			{
-				my $local_task_string = $task_string;
 				my $seed = get_seed();
 				$local_task_string =~ s/__SEED__/$seed/g;
-				push @task_list, $local_task_string;
 			}
-			my $label = $label_string; $label =~ s/__ID__/$id/g;  # TODO
+			push @task_list, $local_task_string;
+
+			my $id_string = sprintf('%0'.$id_length.'d', $id);
+			$label =~ s/__ID__/$id_string/g;  
 			push @task_labels, $label;
 			$id++;
 		}
@@ -212,7 +233,7 @@ sub percent_sub
 {
 	my $char = $_[0];
 	(print "Unrecognized escape sequence %$char.\n" and return 0)
-   		unless any { $_ eq $char } %esc_chars;
+   		unless first { $_ eq $char } %esc_chars;
 
 	if ($char eq 's') { push @cmd_subs, '__SEED__'; }
 	if ($char eq 'i') { push @cmd_subs, '__INSTANCE__'; }

@@ -41,11 +41,14 @@ use util;
 ($base_dir, $inst_dir, $data_dir, $exec_dir, $exec) = ('', '', '', '', '');
 
 my %args;
-getopts('c:d:x:h', \%args);
+getopts('a:e:c:d:x:Yh', \%args);
 if ($args{'h'}) { usage() and exit; }
 $config_file = $args{'c'} ? $args{'c'} : "config";
 $config_dir = $args{'d'} ? $args{'d'} : ".ptest";
 $cmd_file = $args{'x'} ? $args{'x'} : "command";
+$annotation = $args{'a'} ? $args{'a'} : '';
+$exp_name = $args{'e'} ? $args{'e'} : '';
+$always_say_yes = $args{'Y'};
 
 $inst_file = $ARGV[0] ? $ARGV[0] : '';
 initialize($config_dir, $config_file);
@@ -60,6 +63,9 @@ sub usage
 	print "\t-c: Config file name (default config)\n";
 	print "\t-d: Config file directory (default .ptest)\n";
 	print "\t-x: Execution command file (default command)\n";
+	print "\t-e: Experiment name\n";
+	print "\t-a: Experiment annotation\n";
+	print "\t-Y: always say yes to questions\n";
 	print "\t-h: Display help message\n";
 }
 

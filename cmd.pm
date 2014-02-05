@@ -52,8 +52,6 @@ sub setup_cmds
 		require "$config_dir/$cmd_file";
 	}
 	make_cmd($cmd_string);
-	$label_string = '__INSTANCE__.__ID__';  # TODO
-	print $internal_cmd_string . "\n";
 
 	# This complicated bit of logic iteratively looks through the specified command string and
 	# fills in all the different possible combinations of values.  It starts with the un-substituted
@@ -90,10 +88,19 @@ sub setup_cmds
 		}
 	}
 
+	my $order = 0;
+	my %output_order;
+	foreach my $task (@task_list)
+	{
+		$output_order{$task} = $order;
+		$order++;
+	}
+
 	# Fill in the instance names for each of the tasks
 	foreach (0 .. $#task_list)
 	{
 		my $task_string = shift @task_list;
+		my $output_order_num = $output_order{$task_string};
 		if ($task_string =~ /__INSTANCE__/)
 		{
 			if (not @inst_list) 
@@ -117,20 +124,17 @@ sub setup_cmds
 				push @task_list, $local_task_string;
 
 				# Start setting up the label for the output file
-				my $label = $label_string; $label =~ s/__INSTANCE__/$inst/g;
-				push @task_labels, $label;
+				push @output_metadata, { 'name' => $inst,
+										 'order' => $output_order_num };
 			}
 		}
 	}
 
 	# Fill in the random seeds and duplicates for each of the tasks
-	my $id = 0;
-	my $total_num_tests = $#task_list * $num_tests_per;
-	my $id_length = length($total_num_tests);
 	foreach (0 .. $#task_list)
 	{
 		my $task_string = shift @task_list;
-		my $label = shift @task_labels;
+		my $metadata = shift @output_metadata;
 		foreach (1 .. $num_tests_per)
 		{
 			my $local_task_string = $task_string;
@@ -140,11 +144,7 @@ sub setup_cmds
 				$local_task_string =~ s/__SEED__/$seed/g;
 			}
 			push @task_list, $local_task_string;
-
-			my $id_string = sprintf('%0'.$id_length.'d', $id);
-			$label =~ s/__ID__/$id_string/g;  
-			push @task_labels, $label;
-			$id++;
+			push @output_metadata, $metadata;
 		}
 	}
 

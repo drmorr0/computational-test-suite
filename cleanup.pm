@@ -25,8 +25,8 @@ sub cleanup
 	opendir DATADIR, ".";
 	my @allfiles = grep !/(^\.\.?\z|.*\.pdf|.*\.aux|.*\.log)/, readdir DATADIR;
 	closedir DATADIR;
-	chmod 0400, @allfiles;
-	chmod 0555, "$exp_dir";
+#	chmod 0400, @allfiles;
+#	chmod 0555, "$exp_dir";
 	chdir $base_dir;
 }
 

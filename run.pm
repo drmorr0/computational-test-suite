@@ -14,13 +14,14 @@ use util;
 
 use Parallel::Loops;
 use Fcntl qw(:DEFAULT :flock);
-use List::Util qw(first);
+use List::Util qw(first max);
+use JSON;
 
 sub run
 {
 	my $pl = Parallel::Loops->new($num_threads);
-	my %local_data = ();
-	$pl->share(\%local_data);
+	my @local_data = ();
+	$pl->share(\@local_data);
 
 	$pl->foreach(\@task_list, sub
 	{	
@@ -41,7 +42,10 @@ sub run
 		my $output = `$exec_dir/$exec $cmd\n`;
 
 		# Write the raw output to a file
-		open OUTPUT, ">>$exp_dir/$task_labels[$id].out";
+		my $id_length = length($#task_list) + 1;
+		my $output_filename = sprintf("$output_metadata[$id]{'name'}.%0$id_length"."d.out", $id);
+		
+		open OUTPUT, ">>$exp_dir/$output_filename";
 		flock OUTPUT, LOCK_EX;
 		print OUTPUT "----------\n[job $id]: $exec $cmd\n----------\n";
 		print OUTPUT $output;
@@ -55,16 +59,19 @@ sub run
 		flock $readmefp, LOCK_UN;
 
 		# Store the processed data in the local array
-		$local_data{$id} = [ parse_output($output) ];
+		my %from_json = parse_output($id, $output);
+
+		my $inst_name = $output_metadata[$id]{'name'};
+		my $inst_order = $output_metadata[$id]{'order'};
+		push @local_data, [ ($inst_name, $inst_order, %from_json) ];
 
 		# process_hooks('post_run');
 	});
 
-	# Once all of the tasks are complete, we then dump the data into a hash indexed by label
-	foreach my $id (sort keys %local_data)
+	foreach my $entry (@local_data)
 	{
-		print $local_data[$id][0];
-		$data{$task_labels[$id]} = $local_data{$id};
+		($name, $order, %from_json) = @{$entry};
+		$data{$name}{$order} = { %from_json };
 	}
 
 	&{$write_func_name}();
@@ -72,21 +79,60 @@ sub run
 
 sub parse_output
 {
+	($id, $output) = @_;
 	# process_hooks('pre_parse');
-	return (1, 2, 3, 4);	
+	
+	my $order = $output_metadata[$id]{'order'};
+	my $inst_name = $output_metadata[$id]{'name'};
+
+	my @json = $output =~ /(?s)\bDATA_START\b(.*?)\bDATA_END\b/g;
+
+	my $json_data;
+	foreach (@json)
+	{
+		trim($_);
+		$json_data = decode_json($_);
+	}
+
 	# process_hooks('post_parse');
+
+	return %{$json_data};
 }
 
 sub write_data_CSV
 {
-	foreach my $key (sort keys %data)
+	my @instances = sort keys %data;
+	my @columns = sort keys %{$data{$instances[0]}{0}};
+	my @exps = keys $data{$instances[0]};
+	my $max_exp_num = max(map { /^\d+$/ ? $_ : () } @exps);
+
+	print $datafp "Instance, ";
+	foreach my $col_name (@columns)
 	{
-		print $datafp "$key, ";
-		foreach my $i (0 .. $#{$data{$key}})
-			{ print $datafp "$data{$key}[$i], "; }
+		foreach my $i (0 .. $max_exp_num)
+		{
+			print $datafp "$col_name, ";
+		}
+	}
+	print $datafp "\n";
+
+	foreach my $instance (@instances)
+	{
+		print $datafp "$instance, ";
+		foreach my $i (0 .. $#{$data{$instance}{'init'}})
+			{ print $datafp "$data{$instance}{'init'}[$i], "; }
+	
+		foreach my $column (@columns)
+		{
+			foreach my $i (0 .. $max_exp_num)
+			{
+				print $datafp "$data{$instance}{$i}{$column}, ";
+			}
+		}
+	
 		print $datafp "\n";
 	}
-};
+}
 
 
 

@@ -76,12 +76,15 @@ sub initialize
 
 	chdir $base_dir;
 	if ($config_changed) { save_init(); }
-	check_git();
+	check_git() or die("ERROR: Source code is not ready to be executed");
 
 	while (1)
 	{
-		print "Enter a name for this experiment: ";
-		$exp_name = <STDIN>; trim $exp_name;
+		if ($exp_name eq '')
+		{
+			print "Enter a name for this experiment: ";
+			$exp_name = <STDIN>; trim $exp_name;
+		}
 		$exp_dir = "$data_dir/$exp_name"; 
 
 		if (-e "$exp_dir/$readme_name")
@@ -103,12 +106,15 @@ sub initialize
 			mkdir "$exp_dir" or (print "Could not create $exp_dir: $!\n" and next);
 			last; 
 		}
+		$exp_name = '';
 	}
 
-	print "Enter a short description of this experiment: (Ctrl-D to end)\n";
-	my $annotation = '';
-	while (<STDIN>) { $annotation .= "  $_"; }
-	print "\n";
+	if ($annotation eq '')
+	{
+		print "Enter a short description of this experiment: (Ctrl-D to end)\n";
+		while (<STDIN>) { $annotation .= "  $_"; }
+		print "\n";
+	}
 
 	load_instances();
 
@@ -137,7 +143,7 @@ sub load_instances
 			my @inst_line = split /,/;
 			my $inst_name = $inst_line[0]; chomp $inst_name;
 			push @inst_list, $inst_name;
-			# TODO push @data, [ @inst_line[1 .. -1] ];
+			$data{$inst_name} = { 'init' => [ @inst_line[1 .. -1] ] };
 		}
 		close INST;
 	}
@@ -145,7 +151,6 @@ sub load_instances
 	else
 	{
 ALL_FILES:
-		$inst_file = '';		# Clear out the inst_file name, in case it couldn't be read
 		opendir INST_DIR, $inst_dir or 
 			(print "Could not read directory $inst_dir ($!).  Aborting.\n" and exit);
 
@@ -310,6 +315,9 @@ sub check_git
 {
 	my $current_dir = getcwd();
 	chdir $exec_dir;
+	if (system("make") != 0)
+		{ return 0; }
+
 	my $gitstatus = `git status -s -b 2>&1`;
 	if ($gitstatus =~ /^fatal/)
 	{
@@ -335,7 +343,6 @@ sub check_git
 		elsif (prompt('Ok? ', qw(y q)) eq 'q') { exit; }
 	}
 	chdir $current_dir;
-
 	return 1;
 }
 

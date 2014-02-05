@@ -9,7 +9,8 @@ use List::Util 'first';
 our @ISA = 'Exporter';
 our @EXPORT = qw($config_dir $config_file $base_dir $inst_dir $data_dir $exec_dir $exec $exp_name 
 	$exp_dir $readme_name $data_name $readmefp $datafp $num_threads &trim &prompt &create_dir
-	$cmd_file $inst_file @inst_list @task_list @task_labels %data &get_seed $write_func_name);
+	$cmd_file $inst_file @inst_list @task_list %data &get_seed $write_func_name
+	$annotation $always_say_yes @output_metadata);
 
 our ($config_dir, $config_file, $cmd_file);
 our ($base_dir, $inst_dir, $inst_file, @inst_list, $data_dir, $exec_dir, $exec);
@@ -18,8 +19,11 @@ our $readme_name = 'README.ptest';
 our $data_name = 'DATA.ptest';
 our ($readmefp, $datafp);
 our $num_threads = 1;
-our (@task_list, @task_labels, %data);
+our (@task_list, %data);
 our $write_func_name = "write_data_CSV";
+our $annotation = '';
+our $always_say_yes = 0;
+our @output_metadata;
 
 sub trim
 {
@@ -31,6 +35,8 @@ sub prompt
 {
 	my ($query, @commands) = @_;
 	@commands = qw(y n) unless @commands;
+	if ($always_say_yes && first {$_ eq 'y'} @commands)
+		{ return 'y'; }
 
 	my $key;
 	while (1)

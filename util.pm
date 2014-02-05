@@ -1,5 +1,11 @@
 #!/usr/bin/perl
 
+# Here's a bunch of global variables and functions and things.  I think this is probably exceedingly
+# poor Perl form, but I'm not sure what the better thing to do is, and I don't care right now.  This
+# is where you'd find out information about what to hook into, but since hooks don't work right now
+# and this might all change at a moment's notice, maybe it's better to just pretend this file
+# doesn't exist... :)
+
 package util;
 use strict;
 use warnings;
@@ -15,8 +21,8 @@ our @EXPORT = qw($config_dir $config_file $base_dir $inst_dir $data_dir $exec_di
 our ($config_dir, $config_file, $cmd_file);
 our ($base_dir, $inst_dir, $inst_file, @inst_list, $data_dir, $exec_dir, $exec);
 our ($exp_name, $exp_dir, $num_exp);
-our $readme_name = 'README.ptest';
-our $data_name = 'DATA.ptest';
+our $readme_name = 'README.cts';
+our $data_name = 'DATA.cts';
 our ($readmefp, $datafp);
 our $num_threads = 1;
 our (@task_list, %data);

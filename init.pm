@@ -76,8 +76,11 @@ sub initialize
 
 	chdir $base_dir;
 	if ($config_changed) { save_init(); }
+
+	# Check that the git index is clean and that the code is compiled
 	check_git() or die("ERROR: Source code is not ready to be executed");
 
+	# Set up the output data directory
 	while (1)
 	{
 		if ($exp_name eq '')
@@ -109,6 +112,7 @@ sub initialize
 		$exp_name = '';
 	}
 
+	# Provide an annotation for this experiment
 	if ($annotation eq '')
 	{
 		print "Enter a short description of this experiment: (Ctrl-D to end)\n";
@@ -116,18 +120,23 @@ sub initialize
 		print "\n";
 	}
 
+	# Try to find all the instances
 	load_instances();
 
+	# Set up the experiment README file
 	init_readme_and_data_files($annotation);
 
 	# process_hooks('post_init');
 }
 
+# Look for some problem instances to test against
 sub load_instances
 {
+	# It's not necessary to provide a list of instances, if for example your code
+	# automatically generates an instance to run against
 	if ($inst_dir eq '-1') { return; }
 
-	# Use double-braces to make last work
+	# Try to read in the instance file specified
 	if ($inst_file ne '')
 	{
 		if (not open INST, getcwd()."/$inst_file")
@@ -138,6 +147,10 @@ sub load_instances
 			else { exit; }
 		}
 
+		# Store each line of the file as a new instance.  Instance names are 
+		# expected to be the first entry of the line (with or without extension)
+		# The remainder of the line is a comma-separated list that will be written into
+		# the output data file, and can be used to store properties of the instance.
 		while (<INST>) 
 		{ 
 			my @inst_line = split /,/;
@@ -148,6 +161,9 @@ sub load_instances
 		close INST;
 	}
 
+	# If there is no instance file specified, or we couldn't read it, look at the files
+	# in the instance directory.  TODO would be nice to have a way to specify files to
+	# ignore
 	else
 	{
 ALL_FILES:
@@ -164,6 +180,7 @@ ALL_FILES:
 	}
 }
 
+# Open and write initial information to the README/DATA files
 sub init_readme_and_data_files
 {
 	my $annotation = shift;
@@ -315,9 +332,14 @@ sub check_git
 {
 	my $current_dir = getcwd();
 	chdir $exec_dir;
-	if (system("make") != 0)
+
+	# First make sure the code is compiled; if there's no Makefile, do nothing
+	# TODO this needs to be made more sophisticated if there's a specific object or 
+	# executable that should be made
+	if ((-e "Makefile" || -e "makefile") && system("make") != 0)
 		{ return 0; }
 
+	# Check the status of the git repository, if one exists
 	my $gitstatus = `git status -s -b 2>&1`;
 	if ($gitstatus =~ /^fatal/)
 	{
@@ -330,6 +352,7 @@ sub check_git
 		print "\ngit repository status of $exec_dir:\n$gitstatus\n";
 		if ($gitstatus =~ m/^ ?[AMDRCU]\s+/m)
 		{
+			# Force a commit before you run the experiment
 			my $key = prompt("\n**********\nERROR: Changes must be committed before experiments ".
 				"begin.\n**********\n\nProceed? ", qw(y q));
 			if ($key eq 'q') { exit; }

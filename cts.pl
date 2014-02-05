@@ -40,11 +40,12 @@ use util;
 
 ($base_dir, $inst_dir, $data_dir, $exec_dir, $exec) = ('', '', '', '', '');
 
+# Parse command line args.  TODO make this nicer
 my %args;
 getopts('a:e:c:d:x:Yh', \%args);
 if ($args{'h'}) { usage() and exit; }
 $config_file = $args{'c'} ? $args{'c'} : "config";
-$config_dir = $args{'d'} ? $args{'d'} : ".ptest";
+$config_dir = $args{'d'} ? $args{'d'} : ".test";
 $cmd_file = $args{'x'} ? $args{'x'} : "command";
 $annotation = $args{'a'} ? $args{'a'} : '';
 $exp_name = $args{'e'} ? $args{'e'} : '';

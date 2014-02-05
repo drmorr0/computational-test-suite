@@ -23,22 +23,30 @@ sub run
 	my @local_data = ();
 	$pl->share(\@local_data);
 
+	# Run each command in parallel; dump the resulting data into the local_data array;
+	# we'll sort it out after we're all done; since this is being done in parallel, we
+	# have to lock output streams before we write to them
 	$pl->foreach(\@task_list, sub
 	{	
 		# process_hooks('pre_run');
 
 		my $cmd = $_;
+
+		# Find the id of this command
 		my $id = first { $task_list[$_] eq $cmd } 0..$#task_list;
 		
+		# Add an entry into the readme file
 		my $start_time = localtime;
 		flock $readmefp, LOCK_EX;
 		print $readmefp "[job $id] Starting `$exec $cmd` ($start_time)\n";
 		flock $readmefp, LOCK_UN;
 
+		# Progress notification to STDOUT
 		flock STDOUT, LOCK_EX;
-		print "Staring $id: $exec $cmd\n";
+		print "Starting $id: $exec $cmd\n";
 		flock STDOUT, LOCK_UN;
 
+		# Run the command
 		my $output = `$exec_dir/$exec $cmd\n`;
 
 		# Write the raw output to a file
@@ -53,14 +61,16 @@ sub run
 		flock OUTPUT, LOCK_UN;
 		close OUTPUT;
 
+		# Add a second entry to the readme
 		my $done_time = localtime;
 		flock $readmefp, LOCK_EX;
 		print $readmefp "[job $id] Finished `$exec $cmd` ($done_time)\n";
 		flock $readmefp, LOCK_UN;
 
-		# Store the processed data in the local array
+		# Look for data in a JSON format to parse
 		my %from_json = parse_output($id, $output);
 
+		# Store the processed data in the local array
 		my $inst_name = $output_metadata[$id]{'name'};
 		my $inst_order = $output_metadata[$id]{'order'};
 		push @local_data, [ ($inst_name, $inst_order, %from_json) ];
@@ -68,6 +78,12 @@ sub run
 		# process_hooks('post_run');
 	});
 
+	# Now we're not inside a parallel loop any more so we can dump the data into the data hash table
+	# The structure of this table is complicated, and perhaps should be simplified in the future.
+	# For right now, it's a 3D table.  The first dimension is indexed by instance name.  The second
+	# dimension tells what order things should be written out in ('init' is always first, followed
+	# by the numbers 0,...,max).  The third dimension is the headings gotten from the JSON output
+	# from the program, and are interpreted as column headings
 	foreach my $entry (@local_data)
 	{
 		($name, $order, %from_json) = @{$entry};
@@ -99,6 +115,7 @@ sub parse_output
 	return %{$json_data};
 }
 
+# Write the data to a CSV file
 sub write_data_CSV
 {
 	my @instances = sort keys %data;
@@ -106,6 +123,7 @@ sub write_data_CSV
 	my @exps = keys $data{$instances[0]};
 	my $max_exp_num = max(map { /^\d+$/ ? $_ : () } @exps);
 
+	# First write the column headings
 	print $datafp "Instance, ";
 	foreach my $col_name (@columns)
 	{
@@ -116,6 +134,8 @@ sub write_data_CSV
 	}
 	print $datafp "\n";
 
+	# Next write the data for each instance.  The high-level grouping is the column name,
+	# and the low-level grouping is the imposed experiment order
 	foreach my $instance (@instances)
 	{
 		print $datafp "$instance, ";

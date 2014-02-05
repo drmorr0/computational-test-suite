@@ -19,12 +19,14 @@ use List::Util 'first';
 #  3) a string to display for help
 # this can then be extended via a hook to add in custom substitutions
 
+# Escape characters are single characters followed by a percent sign
 our %esc_chars = (
 	's' => 'Insert a random seed',
 	'i' => 'Insert the instance name',
 	'%' => 'Insert a percent sign',
 );
 
+# Other possible substitions
 our @substitutions = (
 	[ '%(.?)', \&percent_sub, '%. - escape characters' ],
 	[ '-\[(.*)\]', \&flag_sub, '-[asdf] - run separate experiments with -a, -s, -d, -f' ],
@@ -88,6 +90,8 @@ sub setup_cmds
 		}
 	}
 
+	# We need to assign an order to the tests so that when we write the data out we make sure that
+	# the display is consistent across all the different instances.
 	my $order = 0;
 	my %output_order;
 	foreach my $task (@task_list)
@@ -108,6 +112,8 @@ sub setup_cmds
 
 			foreach my $inst (@inst_list)
 			{ 
+				# Find a file in the instance directory that matches the instance name.
+				# If more than one file matches, use the first one
 				my $local_task_string = $task_string;
 				my @matching_instance_names = <"$inst_dir/$inst.*">;
 				if (@matching_instance_names > 1)
@@ -123,7 +129,7 @@ sub setup_cmds
 				$local_task_string =~ s|__INSTANCE__|$matching_instance_names[0]|g; 
 				push @task_list, $local_task_string;
 
-				# Start setting up the label for the output file
+				# Start setting up the metadata for the particular command we're running
 				push @output_metadata, { 'name' => $inst,
 										 'order' => $output_order_num };
 			}
@@ -144,6 +150,9 @@ sub setup_cmds
 				$local_task_string =~ s/__SEED__/$seed/g;
 			}
 			push @task_list, $local_task_string;
+
+			# Random seeds and repeated trials don't affect the metadata, so reproduce this
+			# for every trial
 			push @output_metadata, $metadata;
 		}
 	}

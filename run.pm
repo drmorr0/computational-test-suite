@@ -16,6 +16,7 @@ use Parallel::Loops;
 use Fcntl qw(:DEFAULT :flock);
 use List::Util qw(first max);
 use JSON;
+use Capture::Tiny 'capture';
 
 sub run
 {
@@ -47,7 +48,25 @@ sub run
 		flock STDOUT, LOCK_UN;
 
 		# Run the command
-		my $output = `$exec_dir/$exec $cmd\n`;
+		my ($output, $error, $status) = capture {system("$exec_dir/$exec $cmd")};
+
+		my $exit_code = $status >> 8;
+		my $signal = $status & 127;
+
+		# Record any errors that appear
+		if ($status != 0 || $error ne '')
+		{
+			flock STDOUT, LOCK_EX;
+			print "\nWARNING: Job $id halted with exit code $exit_code, signal $signal\n";
+			print "WARNING: Job $id error message:\n$error\n\n";
+			flock STDOUT, LOCK_UN;
+			my $error_time = localtime;
+			flock README, LOCK_EX;
+			print $readmefp "[job $id] halted with exit code $exit_code, ".
+				"signal $signal ($error_time)\n";
+			print $readmefp "[job $id] Error message: $error\n";
+			flock README, LOCK_UN;
+		}
 
 		# Write the raw output to a file
 		my $id_length = length($#task_list) + 1;

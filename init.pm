@@ -202,7 +202,9 @@ sub init_readme_and_data_files
 	else { print $readmefp "\n$gitlog\n"; }
 	print "\n";
 
-	print $readmefp "Running on instances from $inst_dir\n";
+	print $readmefp "Running on instances from $inst_dir:\n";
+	foreach (@inst_list)
+		{ print "  $_\n"; }
 	print $readmefp "Saving data to $exp_dir\n";
 	print $readmefp "----------------------------------------------------------------------\n";
 

@@ -42,10 +42,10 @@ use util;
 
 # Parse command line args.  TODO make this nicer
 my %args;
-getopts('F:O:Pa:e:c:d:x:Yh', \%args);
+getopts('O:D:Pa:e:c:d:x:Yh', \%args);
 if ($args{'h'}) { usage() and exit; }
-if ($args{'F'}) { $out_extn = $args{'F'}; }
-if ($args{'O'}) { $data_extn = $args{'O'}; }
+if ($args{'O'}) { $out_extn = $args{'O'}; }
+if ($args{'D'}) { $data_extn = $args{'D'}; }
 $config_file = $args{'c'} ? $args{'c'} : "config";
 $config_dir = $args{'d'} ? $args{'d'} : ".test";
 $cmd_file = $args{'x'} ? $args{'x'} : "command";

@@ -1,0 +1,6 @@
+
+ * Better options parsing
+ * Redo data structures for storing experiment output
+ * Better modularization/compartmentalization
+
+

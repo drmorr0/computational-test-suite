@@ -15,6 +15,7 @@ use util;
 use Parallel::Loops;
 use Fcntl qw(:DEFAULT :flock);
 use List::Util qw(first max);
+use List::MoreUtils qw(uniq);
 use JSON;
 use Capture::Tiny 'capture';
 
@@ -22,7 +23,8 @@ sub run
 {
 	my $pl = Parallel::Loops->new($num_threads);
 	my @local_data = ();
-	$pl->share(\@local_data);
+	my @column_headings = ();
+	$pl->share(\@local_data, @column_headings);
 
 	# Run each command in parallel; dump the resulting data into the local_data array;
 	# we'll sort it out after we're all done; since this is being done in parallel, we
@@ -74,7 +76,11 @@ sub run
 		
 		open OUTPUT, ">>$exp_dir/$output_filename";
 		flock OUTPUT, LOCK_EX;
-		print OUTPUT "----------\n[job $id]: $exec $cmd\n----------\n";
+		print OUTPUT "----------\n";
+		print OUTPUT "[job $id]: $exec $cmd\n";
+		print OUTPUT '$output_metadata['.$id.']{\'name\'} = '.$output_metadata[$id]{'name'};
+		print OUTPUT '$output_metadata['.$id.']{\'order\'} = '.$output_metadata[$id]{'order'};
+		print OUTPUT "----------\n";
 		print OUTPUT $output;
 		print OUTPUT "----------\n";
 		flock OUTPUT, LOCK_UN;
@@ -88,6 +94,7 @@ sub run
 
 		# Look for data in a JSON format to parse
 		my %from_json = parse_output($id, $output);
+		push @column_headings, keys %from_json;
 
 		# Store the processed data in the local array
 		my $inst_name = $output_metadata[$id]{'name'};
@@ -103,13 +110,52 @@ sub run
 	# dimension tells what order things should be written out in ('init' is always first, followed
 	# by the numbers 0,...,max).  The third dimension is the headings gotten from the JSON output
 	# from the program, and are interpreted as column headings
+	my $max_order_num = -1;
 	foreach my $entry (@local_data)
 	{
 		($name, $order, %from_json) = @{$entry};
 		$data{$name}{$order} = { %from_json };
+		if ($order > $max_order_num) { $max_order_num = $order; }
 	}
+	@column_headings = uniq @column_headings;
 
-	&{$write_func_name}();
+	&{$write_func_name}($max_order_num, @column_headings);
+}
+
+sub parse
+{
+	open $datafp, ">$exp_dir/$data_name";
+	opendir DATADIR, $exp_dir or die("Could not open $exp_dir for reading");
+	my @datafiles = grep /.*\.out/, readdir DATADIR;
+	my @column_headings;
+	my $max_order_num = -1;
+	foreach (@datafiles)
+	{
+		if (!/.*\.(\d+)\.out/) { die ("Invalid output file"); }
+		my $job_id = $1;
+
+		local $/;
+		open DATAFILE, "$exp_dir/$_" or die "Could not open file $exp_dir/$_";
+		my $output = <DATAFILE>;
+		if (!($output =~ /output_metadata.*{'name'} = (.*)/)) 
+			{ die "Invalid output file format"; }
+		my $inst_name = $1;
+		if (!($output =~ /output_metadata.*{'order'} = (\d+)/)) 
+			{ die "Invalid output file format"; }
+		my $order = $1;
+
+		$output_metadata[$id] = { 'name' => $inst_name, 'order' => $order };
+
+		my %from_json = parse_output($id, $output);
+		$data{$inst_name}{$order} = { %from_json };
+		push @column_headings, keys %from_json;
+		if ($order > $max_order_num) { $max_order_num = $order; }
+		close DATAFILE;
+	}
+	close DATADIR;
+	@column_headings = uniq @column_headings;
+
+	&{$write_func_name}($max_order_num, @column_headings);
 }
 
 sub parse_output
@@ -137,10 +183,9 @@ sub parse_output
 # Write the data to a CSV file
 sub write_data_CSV
 {
+	my ($max_exp_num, @columns) = @_;
+	$columns = sort @columns;
 	my @instances = sort keys %data;
-	my @columns = sort keys %{$data{$instances[0]}{0}};
-	my @exps = keys $data{$instances[0]};
-	my $max_exp_num = max(map { /^\d+$/ ? $_ : () } @exps);
 
 	# First write the column headings
 	print $datafp "Instance, ";

@@ -42,7 +42,7 @@ use util;
 
 # Parse command line args.  TODO make this nicer
 my %args;
-getopts('a:e:c:d:x:Yh', \%args);
+getopts('Pa:e:c:d:x:Yh', \%args);
 if ($args{'h'}) { usage() and exit; }
 $config_file = $args{'c'} ? $args{'c'} : "config";
 $config_dir = $args{'d'} ? $args{'d'} : ".test";
@@ -50,12 +50,21 @@ $cmd_file = $args{'x'} ? $args{'x'} : "command";
 $annotation = $args{'a'} ? $args{'a'} : '';
 $exp_name = $args{'e'} ? $args{'e'} : '';
 $always_say_yes = $args{'Y'};
+my $parse_only = $args{'P'};
 
-$inst_file = $ARGV[0] ? $ARGV[0] : '';
-initialize($config_dir, $config_file);
-setup_cmds();
-run();
-cleanup();
+if ($parse_only)
+{
+	$exp_dir = $ARGV[0] ? $ARGV[0] : '';
+	parse();
+}
+else
+{
+	$inst_file = $ARGV[0] ? $ARGV[0] : '';
+	initialize($config_dir, $config_file);
+	setup_cmds();
+	run();
+	cleanup();
+}
 
 sub usage
 {

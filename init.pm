@@ -204,7 +204,7 @@ sub init_readme_and_data_files
 
 	print $readmefp "Running on instances from $inst_dir:\n";
 	foreach (@inst_list)
-		{ print "  $_\n"; }
+		{ print $readmepf "  $_\n"; }
 	print $readmefp "Saving data to $exp_dir\n";
 	print $readmefp "----------------------------------------------------------------------\n";
 

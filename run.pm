@@ -80,8 +80,8 @@ sub run
 		flock OUTPUT, LOCK_EX;
 		print OUTPUT "----------\n";
 		print OUTPUT "[job $id]: $exec $cmd\n";
-		print OUTPUT '$output_metadata['.$id.']{\'name\'} = '.$inst_name;
-		print OUTPUT '$output_metadata['.$id.']{\'order\'} = '.$inst_order;
+		print OUTPUT '$output_metadata['.$id.']{\'name\'} = '.$inst_name."\n";
+		print OUTPUT '$output_metadata['.$id.']{\'order\'} = '.$inst_order."\n";
 		print OUTPUT "----------\n";
 		print OUTPUT $output;
 		print OUTPUT "----------\n";
@@ -124,14 +124,14 @@ sub run
 
 sub parse
 {
-	open $datafp, ">$exp_dir/$data_name";
+	open $datafp, ">$exp_dir/$data_name.$data_extn" or die("Could not open $exp_dir/$data_name.$data_extn for writing");
 	opendir DATADIR, $exp_dir or die("Could not open $exp_dir for reading");
-	my @datafiles = grep /.*\.out/, readdir DATADIR;
+	my @datafiles = grep /.*\.$out_extn/, readdir DATADIR;
 	my @column_headings;
 	my $max_order_num = -1;
 	foreach (@datafiles)
 	{
-		if (!/.*\.(\d+)\.out/) { die ("Invalid output file"); }
+		if (!/.*\.(\d+)\.$out_extn/) { die ("Invalid output file"); }
 		my $job_id = $1;
 
 		local $/;

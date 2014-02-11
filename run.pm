@@ -24,7 +24,7 @@ sub run
 	my $pl = Parallel::Loops->new($num_threads);
 	my @local_data = ();
 	my @column_headings = ();
-	$pl->share(\@local_data, @column_headings);
+	$pl->share(\@local_data, \@column_headings);
 
 	# Run each command in parallel; dump the resulting data into the local_data array;
 	# we'll sort it out after we're all done; since this is being done in parallel, we
@@ -71,7 +71,7 @@ sub run
 		}
 
 		# Write the raw output to a file
-		my $id_length = length($#task_list) + 1;
+		my $id_length = length($#task_list);
 		my $inst_name = $output_metadata[$id]{'name'};
 		my $inst_order = $output_metadata[$id]{'order'};
 		my $output_filename = sprintf("$inst_name.%0$id_length"."d.$out_extn", $id);

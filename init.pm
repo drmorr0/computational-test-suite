@@ -351,8 +351,9 @@ sub check_git
 	}
 	else
 	{
-		print "\ngit repository status of $exec_dir:\n$gitstatus\n";
-		print `git log -1 2&>1`;
+		print "\ngit repository status of $exec_dir:\n\n";
+		print `git log -1 2>&1`;
+		print "\n$gitstatus\n\n";
 		if ($gitstatus =~ m/^ ?[AMDRCU]\s+/m)
 		{
 			# Force a commit before you run the experiment

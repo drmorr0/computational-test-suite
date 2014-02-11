@@ -90,7 +90,7 @@ sub initialize
 		}
 		$exp_dir = "$data_dir/$exp_name"; 
 
-		if (-e "$exp_dir/$readme_name")
+		if (-e "$exp_dir/$readme_name.$data_extn")
 		{
 			my $key = prompt("An experiment with this name already exists.  Continue? ", 
 				qw(y n q));
@@ -186,8 +186,8 @@ sub init_readme_and_data_files
 	my $annotation = shift;
 	my $time = localtime;
 
-	open $readmefp, ">>$exp_dir/$readme_name" or 
-		die("Could not open $exp_dir/$readme_name for writing ($!)\n");
+	open $readmefp, ">>$exp_dir/$readme_name.$data_extn" or 
+		die("Could not open $exp_dir/$readme_name.$data_extn for writing ($!)\n");
 	print $readmefp "----------------------------------------------------------------------\n";
 	print $readmefp "New experiment beginning on $time\n";
 	print $readmefp "Experiment name: $exp_name\n";
@@ -208,7 +208,7 @@ sub init_readme_and_data_files
 	print $readmefp "Saving data to $exp_dir\n";
 	print $readmefp "----------------------------------------------------------------------\n";
 
-	open $datafp, ">>$exp_dir/$data_name";
+	open $datafp, ">>$exp_dir/$data_name.$data_extn";
 }
 
 # Write out the current configuration to a file

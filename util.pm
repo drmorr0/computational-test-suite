@@ -16,13 +16,14 @@ our @ISA = 'Exporter';
 our @EXPORT = qw($config_dir $config_file $base_dir $inst_dir $data_dir $exec_dir $exec $exp_name 
 	$exp_dir $readme_name $data_name $readmefp $datafp $num_threads &trim &prompt &create_dir
 	$cmd_file $inst_file @inst_list @task_list %data &get_seed $write_func_name
-	$annotation $always_say_yes @output_metadata);
+	$annotation $always_say_yes @output_metadata $out_extn $data_extn);
 
 our ($config_dir, $config_file, $cmd_file);
 our ($base_dir, $inst_dir, $inst_file, @inst_list, $data_dir, $exec_dir, $exec);
 our ($exp_name, $exp_dir, $num_exp);
-our $readme_name = 'README.cts';
-our $data_name = 'DATA.cts';
+our ($data_extn, $out_extn) = ('cts', 'out');
+our $readme_name = 'README';
+our $data_name = 'DATA';
 our ($readmefp, $datafp);
 our $num_threads = 1;
 our (@task_list, %data);

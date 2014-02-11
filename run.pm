@@ -72,14 +72,16 @@ sub run
 
 		# Write the raw output to a file
 		my $id_length = length($#task_list) + 1;
-		my $output_filename = sprintf("$output_metadata[$id]{'name'}.%0$id_length"."d.out", $id);
+		my $inst_name = $output_metadata[$id]{'name'};
+		my $inst_order = $output_metadata[$id]{'order'};
+		my $output_filename = sprintf("$inst_name.%0$id_length"."d.$out_extn", $id);
 		
 		open OUTPUT, ">>$exp_dir/$output_filename";
 		flock OUTPUT, LOCK_EX;
 		print OUTPUT "----------\n";
 		print OUTPUT "[job $id]: $exec $cmd\n";
-		print OUTPUT '$output_metadata['.$id.']{\'name\'} = '.$output_metadata[$id]{'name'};
-		print OUTPUT '$output_metadata['.$id.']{\'order\'} = '.$output_metadata[$id]{'order'};
+		print OUTPUT '$output_metadata['.$id.']{\'name\'} = '.$inst_name;
+		print OUTPUT '$output_metadata['.$id.']{\'order\'} = '.$inst_order;
 		print OUTPUT "----------\n";
 		print OUTPUT $output;
 		print OUTPUT "----------\n";
@@ -97,8 +99,6 @@ sub run
 		push @column_headings, keys %from_json;
 
 		# Store the processed data in the local array
-		my $inst_name = $output_metadata[$id]{'name'};
-		my $inst_order = $output_metadata[$id]{'order'};
 		push @local_data, [ ($inst_name, $inst_order, %from_json) ];
 
 		# process_hooks('post_run');

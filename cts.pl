@@ -42,8 +42,10 @@ use util;
 
 # Parse command line args.  TODO make this nicer
 my %args;
-getopts('Pa:e:c:d:x:Yh', \%args);
+getopts('F:O:Pa:e:c:d:x:Yh', \%args);
 if ($args{'h'}) { usage() and exit; }
+if ($args{'F'}) { $out_extn = $args{'F'}; }
+if ($args{'O'}) { $data_extn = $args{'O'}; }
 $config_file = $args{'c'} ? $args{'c'} : "config";
 $config_dir = $args{'d'} ? $args{'d'} : ".test";
 $cmd_file = $args{'x'} ? $args{'x'} : "command";
@@ -70,6 +72,9 @@ sub usage
 {
 	my $exec = basename($0);
 	print "usage: $exec -cdxh [instance_list]\n";
+	print "\t-P: Call the data parsing module only\n";
+	print "\t-D: Set the data/readme file extensions (default cts)\n";
+	print "\t-O: Set the output file extensions (default out)\n";
 	print "\t-c: Config file name (default config)\n";
 	print "\t-d: Config file directory (default .ptest)\n";
 	print "\t-x: Execution command file (default command)\n";

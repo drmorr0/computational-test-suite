@@ -134,7 +134,13 @@ sub load_instances
 {
 	# It's not necessary to provide a list of instances, if for example your code
 	# automatically generates an instance to run against
-	if ($inst_dir eq '-1') { return; }
+	if ($inst_dir eq '-1') 
+	{ 
+		if ($inst_file ne '' && 
+			prompt('WARNING: No instance directory given, but instance list specified.  Continue? ')
+			ne 'y') { exit; }
+		return; 
+	}
 
 	# Try to read in the instance file specified
 	if ($inst_file ne '')
@@ -152,11 +158,27 @@ sub load_instances
 		# The remainder of the line is a comma-separated list that will be written into
 		# the output data file, and can be used to store properties of the instance.
 		while (<INST>) 
-		{ 
-			my @inst_line = split /,/;
-			my $inst_name = $inst_line[0]; chomp $inst_name;
-			push @inst_list, $inst_name;
-			$data{$inst_name} = { 'init' => [ @inst_line[1 .. -1] ] };
+		{
+			/^(.*?)(,(.*))?$/ or die "Invalid instance file format"; 
+			my $inst_key = $1;
+			my $inst_meta = $3; trim $inst_meta;
+			$inst_data{$inst_key, 'meta'} = $inst_meta;
+
+			# Find a file in the instance directory that matches the instance name.
+			# If more than one file matches, use the first one
+			my (@matching_instance_names) = glob("$inst_dir/$inst_key*");
+			if (@matching_instance_names > 1)
+			{
+				print "WARNING: More than one instance file matches $inst_key in $inst_dir.\n  ".
+					"Using $matching_instance_names[0].\n"
+			}
+			elsif (@matching_instance_names == 0)
+			{
+				print "WARNING: Could not find file matching $inst_key in $inst_dir; ignoring.\n";
+				next;
+			}
+			$inst_data{$inst_key, 'filename'} = $matching_instance_names[0];
+			push @inst_keys, $inst_key;
 		}
 		close INST;
 	}
@@ -173,8 +195,8 @@ ALL_FILES:
 		while (readdir INST_DIR)
 		{
 			next if (/^\./);
-			my ($fn, $dir, $suf) = fileparse($_, qr/\.[^.]+/);
-			push @inst_list, $fn;
+			$inst_data{$_, 'filename'} = $_;
+			push @inst_keys, $_;
 		}
 		closedir INST_DIR;
 	}
@@ -202,9 +224,12 @@ sub init_readme_and_data_files
 	else { print $readmefp "\n$gitlog\n"; }
 	print "\n";
 
-	print $readmefp "Running on instances from $inst_dir:\n";
-	foreach (@inst_list)
-		{ print $readmefp "  $_\n"; }
+	if ($inst_dir != -1)
+	{
+		print $readmefp "Running on instances from $inst_dir:\n";
+		foreach (@inst_keys)
+			{ print $readmefp "  $_\n"; }
+	}
 	print $readmefp "Saving data to $exp_dir\n";
 	print $readmefp "----------------------------------------------------------------------\n";
 

@@ -11,13 +11,12 @@ use warnings;
 use strict;
 use util;
 use List::Util 'first';
+use List::MoreUtils 'uniq';
+use Set::CrossProduct;
 
-# each substitution needs
-#  1) a regex to search for in the input string
-#  2) a function that stores something in the @cmd_subs array (a scalar means it's inserted every
-#     time, an array does one experiment with a different replacement from the array)
-#  3) a string to display for help
-# this can then be extended via a hook to add in custom substitutions
+# Users can extend the command substitution capabilities in two ways, first by adding a custom
+# escape character and providing a function to handle it with the 'escape_chars' hook, or by
+# providing a custom substitution string with a handling function.
 
 # Escape characters are single characters followed by a percent sign
 our %esc_chars = (
@@ -26,204 +25,138 @@ our %esc_chars = (
 	'%' => 'Insert a percent sign',
 );
 
-# Other possible substitions
+# Other possible substitutions need:
+#  1) a regex to search for in the input string
+#  2) a function that stores something in the @slots array (a scalar means it's inserted every
+#     time, an array does one experiment with a different replacement from the array)
+#  3) a string to display for help
+
 our @substitutions = (
 	[ '%(.?)', \&percent_sub, '%. - escape characters' ],
-	[ '-\[(.*)\]', \&flag_sub, '-[asdf] - run separate experiments with -a, -s, -d, -f' ],
-	[ '\<(.*)\>', \&word_sub, '<word1|word2|word3> - run separate experiments with '. 
+	[ '-\[(.*?)\]', \&flag_sub, '-[asdf] - run separate experiments with -a, -s, -d, -f' ],
+	[ '\<(.*?)\>', \&word_sub, '<word1|word2|word3> - run separate experiments with '. 
 		'word1, word2, word3' ],
 );
 
-our @hook_help_strings = ();
+# The array of values that get subtituted into the command string; the slot __i__ gets filled in
+# with an element from $slot_values[$i].  If $slot_values[$i] is an array, we run a different
+# experiment with each entry from the array
+our $command;
+our @slots;
 
-our ($cmd_string, $internal_cmd_string, $num_tests_per, $label_string);
-our @cmd_subs;
-
-# Populate the @task_list array with all of the commands we're going to run (in however many
-# duplicates we're doing them).  This array will then get parallelized.
 sub setup_cmds 
 {
 	# process_hooks('pre_cmd');
 	
-	$cmd_string = ''; $label_string = ''; $num_tests_per = -1;
+	get_command();
+
+	# The first step in parsing the command string is to replace all of the matched substitution
+	# strings with slots of the form '__i__', where i is the slot number.  To do this, we simply
+	# loop through all of the substitution strings and try to apply them as many times as possible.
+	# Each time we apply one, we also call the appropriate function.  The function should return a
+	# value or an array that we can fill into @slots
+	my $slot_ind = 0;
+	foreach my $subs_string (@substitutions)
+	{
+		my $subs_regex = $subs_string->[0];
+		my $subs_func = $subs_string->[1];
+
+		# The order of exploration from the substitution list means that earlier substitutions will
+		# get expanded inside later groups.  So for instance, <x -[asdf]|y> will expand the -[asdf]
+		# into <x __1__|y> before expanding the second one.  This behavior is both desired and a
+		# little bit problematic (switching around to -[a<x|y>] will expand into 
+		# -a, -<, -x, -|, -y, ->
+		# We could write a full-recursive solution here, but I'm not sure it's worth the work right
+		# now, nor am I sure it's the desired behavior.  I can come back to it later
+		#
+		while ($command =~ s/$subs_regex/__${slot_ind}__/)
+		{
+			$subs_func->($1) or die "Could not perform substitution for $1";
+			$slot_ind++;
+		}
+	}
+
+	# Next, we process all of the substitutions that should impact the output order for the data
+	# table (currently, this is everything except the instance name and the random seed).
+	my $combinations = Set::CrossProduct->new(\@slots);
+	while (my $combination = $combinations->get)
+	{
+		my $task = $command;
+
+		# We need to process in reverse because later slots could contain earlier slots inside them
+		foreach my $slot_ind (reverse 0 .. $#{$combination})
+			{ $task =~ s/__${slot_ind}__/$combination->[$slot_ind]/; }
+		push @task_list, $task;
+	}
+	# 
+	@task_list = uniq @task_list;
+
+	# Each task needs a data output order which is independent of some substitutions (instance name
+	# and seed by default).  Rather than storing this in a separate data structure and try to do
+	# complicated lookups, we just prepend the order onto the task string before doing any
+	# order-independent substitutions
+	my $i = 0; @task_list = map { '__ORDER_'.$i++."__ $_" } @task_list;
+
+	# Fill in each of the instance keys in the command strings
+	@task_list = map { $_->[0] =~ s/__INST__/__INST_\{$_->[1]\}__/g; $_->[0] } 
+		Set::CrossProduct->new([\@task_list, \@inst_keys])->combinations;
+
+	@task_list = (@task_list) x $num_tests_per;
+
+	# process_hooks('post_cmd');
+	exit;
+}
+
+# Read in the command string from the user
+sub get_command
+{
+    my $save_changes = 0;
+
+	$command = '';
 	# Read in a command from the specified command file
 	if (-e "$config_dir/$cmd_file")
 	{
-		die "ERROR: $config_dir/$cmd_file is not readable!\n" unless 
-			-r "$config_dir/$cmd_file";
-		require "$config_dir/$cmd_file";
-	}
-	make_cmd($cmd_string);
-
-	# This complicated bit of logic iteratively looks through the specified command string and
-	# fills in all the different possible combinations of values.  It starts with the un-substituted
-	# command and then substitutes in for __1__, __2__, etc. one at a time.  Each time it performs
-	# a substitution, it adds the command back on to the @task_list.  The end result is a list of 
-	# commands on the task list
-	@task_list = ($internal_cmd_string);
-
-	foreach my $i (0 .. @cmd_subs)
-	{
-		my $num_tasks = $#task_list;
-		foreach (0 .. $num_tasks)
-		{
-			my $task_string = shift @task_list;
-			my $sub_str = '__'.$i.'__';
-
-			# If it's an array, add a value with each possibility from the array
-			if (ref($cmd_subs[$i]) eq 'ARRAY')
-			{
-				foreach my $el (@{$cmd_subs[$i]})
-				{
-					my $new_task_string = $task_string;
-					$new_task_string =~ s/$sub_str/$el/;
-					push @task_list, $new_task_string;
-				}
-			}
-
-			# Otherwise, just fill in one value
-			else
-			{
-				$task_string =~ s/$sub_str/$cmd_subs[$i]/;
-				push @task_list, $task_string;
-			}
-		}
+		print "Reading from $config_dir/$cmd_file...\n";
+		require "$config_dir/$cmd_file" or die "Could not read $config_dir/$cmd_file ($!)";
 	}
 
-	# We need to assign an order to the tests so that when we write the data out we make sure that
-	# the display is consistent across all the different instances.
-	my $order = 0;
-	my %output_order;
-	foreach my $task (@task_list)
-	{
-		$output_order{$task} = $order;
-		$order++;
-	}
-
-	# Fill in the instance names for each of the tasks
-	foreach (0 .. $#task_list)
-	{
-		my $task_string = shift @task_list;
-		my $output_order_num = $output_order{$task_string};
-		if ($task_string =~ /__INSTANCE__/)
-		{
-			if (not @inst_list) 
-				{ print "No instances available.  Aborting.\n"; exit; }
-
-			foreach my $inst (@inst_list)
-			{ 
-				# Find a file in the instance directory that matches the instance name.
-				# If more than one file matches, use the first one
-				my $local_task_string = $task_string;
-				my @matching_instance_names = <"$inst_dir/$inst.*">;
-				if (@matching_instance_names > 1)
-				{ 
-					print "WARNING: More than one instance file matches $inst in $inst_dir.  ".
-						"Using $matching_instance_names[0].\n"
-				}
-				elsif (@matching_instance_names == 0)
-				{
-					print "WARNING: Could not find file matching $inst in $inst_dir; ignoring.\n";
-					next;
-				}
-				$local_task_string =~ s|__INSTANCE__|$matching_instance_names[0]|g; 
-				push @task_list, $local_task_string;
-
-				# Start setting up the metadata for the particular command we're running
-				push @output_metadata, { 'name' => $inst,
-										 'order' => $output_order_num };
-			}
-		}
-	}
-
-	# Fill in the random seeds and duplicates for each of the tasks
-	foreach (0 .. $#task_list)
-	{
-		my $task_string = shift @task_list;
-		my $metadata = shift @output_metadata;
-		foreach (1 .. $num_tests_per)
-		{
-			my $local_task_string = $task_string;
-			if ($task_string =~ /__SEED__/)
-			{
-				my $seed = get_seed();
-				$local_task_string =~ s/__SEED__/$seed/g;
-			}
-			push @task_list, $local_task_string;
-
-			# Random seeds and repeated trials don't affect the metadata, so reproduce this
-			# for every trial
-			push @output_metadata, $metadata;
-		}
-	}
-
-	# At this point, any hooks can do further processing to the variables in the @task_list to
-	# handle custom escape characters or other refinements of the commands.  The result at the very
-	# end should be a list of commands that can be run as-is
-	
-	# process_hooks('post_cmd');
-
-	if (prompt('This experiment will contain '. scalar @task_list .' tests.  Continue?') eq 'n') 
-		{ exit; }
-}
-
-# Set up the initial command string, either from the command line or a file
-sub make_cmd
-{
-	my $save_changes = 0;
-
-	if ($cmd_string eq '')
-	{
+    if ($command eq '')
+    {
 CMD_INPUT:
-		print "Enter the command-line arguments to be passed to $exec (? for help, q to quit)\n";
-		print "$exec ";
-		$cmd_string = <STDIN>; trim $cmd_string;
-		$save_changes = 1;
+        print "Enter the command-line arguments to be passed to $exec (? for help, q to quit)\n";
+        print "$exec ";
+        $command = <STDIN>; trim $command;
+        $save_changes = 1;
 
-		if ($cmd_string eq '?') { print_help_string(); goto CMD_INPUT; }
-		elsif ($cmd_string eq 'q') { exit; }
-	}
-	else
-	{
-		my $key = prompt("Using command string:\n  $exec $cmd_string.\nOk?", qw(y n q));
-		if ($key eq 'n') { goto CMD_INPUT; }
-		elsif ($key eq 'q') { exit; }
-	}
-
-
-	# Fill in markers using the user-provided processing functions.  The markers take the form __#__
-	# in the $internal_cmd_string, and the entry in the @cmd_subs array specifies what one or more
-	# values should be substituted for the markers.
-	$internal_cmd_string = $cmd_string;
-
-	my $ind = 0;
-	my $marker = '__'.$ind.'__';
-	foreach my $i (0 .. $#substitutions)
-	{
-		while ($internal_cmd_string =~ s/$substitutions[$i][0]/$marker/)
-		{
-			if (not $substitutions[$i][1]($1)) { goto CMD_INPUT; }
-			$ind += 1; $marker = '__'.$ind.'__';
-		}
-	}
+        if ($command eq '?') { print_help_string(); goto CMD_INPUT; }
+        elsif ($command eq 'q') { exit; }
+    }
+    else
+    {
+        my $key = prompt("Using command string:\n  $exec $command.\nOk?", qw(y n q));
+        if ($key eq 'n') { goto CMD_INPUT; }
+        elsif ($key eq 'q') { exit; }
+    }
 
 	# Figure out how many times to run each command
-	if ($num_tests_per < 0)
-	{
+    if ($num_tests_per < 0)
+    {
 NUM_TESTS:
-		print "How many tests to do for each instance? ";
-		$num_tests_per = <STDIN>; trim $num_tests_per;
-		$save_changes = 1;
-		if (not ($num_tests_per =~ /\d+/ && $num_tests_per > 0)) 
-			{ print "Invalid number.\n"; goto NUM_TESTS; }
-	}
-	else
-	{
-		my $key = prompt("Running $num_tests_per tests per instance.  Ok?", qw(y n q));
-		if ($key eq 'n') { goto NUM_TESTS; }
-		elsif ($key eq 'q') { exit; }
-	}
-	if ($save_changes) { save_cmd($cmd_string); }
+        print "How many tests to do for each instance? ";
+        $num_tests_per = <STDIN>; trim $num_tests_per;
+        $save_changes = 1;
+        if (not ($num_tests_per =~ /\d+/ && $num_tests_per > 0))
+            { print "Invalid number.\n"; goto NUM_TESTS; }
+    }
+    else
+    {
+        my $key = prompt("Running $num_tests_per tests per instance.  Ok?", qw(y n q));
+        if ($key eq 'n') { goto NUM_TESTS; }
+        elsif ($key eq 'q') { exit; }
+    }
+    if ($save_changes) { save_cmd($command); }
+
+	return $command;
 }
 
 # Print out a help string specifying what special command string values are parsed
@@ -233,7 +166,6 @@ sub print_help_string
 		{ print "  %$_ - $esc_chars{$_}\n"; }
 	foreach my $i (1 .. $#substitutions)
 		{ print "  $substitutions[$i][2]\n"; }
-	foreach (@hook_help_strings) { print "  $_\n"; }
 	print "\n";
 }
 
@@ -244,9 +176,9 @@ sub percent_sub
 	(print "Unrecognized escape sequence %$char.\n" and return 0)
    		unless first { $_ eq $char } %esc_chars;
 
-	if ($char eq 's') { push @cmd_subs, '__SEED__'; }
-	if ($char eq 'i') { push @cmd_subs, '__INSTANCE__'; }
-	if ($char eq '%') { push @cmd_subs, '%'; }
+	if ($char eq 's') { push @slots, [ '__SEED__' ]; }
+	if ($char eq 'i') { push @slots, [ '__INST__ ' ]; }
+	if ($char eq '%') { push @slots, [ '%' ]; }
 
 	return 1;
 }
@@ -254,21 +186,21 @@ sub percent_sub
 # Fill in with all possible (single-character) flags, specified in -[asdf]
 sub flag_sub
 {
-	push(@cmd_subs, [ map {"-$_"} split('', $_[0]) ]);
+	push(@slots, [ map {"-$_"} split('', $_[0]) ]);
 	return 1;
 }
 
 # Replace <word1|word2> with word1, word2
 sub word_sub
 {
-	push(@cmd_subs, [ split(/\|/, $_[0]) ]);
+	push(@slots, [ split(/\|/, $_[0]) ]);
 	return 1;
 }
 
 # Write the command string data to a file
 sub save_cmd
 {
-	my $cmd_string = shift;
+	my $command = shift;
 	if (prompt("Save command string?") eq 'n') { return; }
 
 SAVE_CMD:
@@ -282,7 +214,7 @@ SAVE_CMD:
 
 	open CMD, ">$config_dir/$cmd_file" or 
 		(print "Could not save $config_dir/$cmd_file ($!).\n" and goto SAVE_CMD);
-	print CMD "\$cmd_string = \"$cmd_string\";\n";
+	print CMD "\$command = \"$command\";\n";
 	print CMD "\$num_tests_per = $num_tests_per;\n";
 	print CMD "1;";
 	close CMD;

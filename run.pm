@@ -18,7 +18,6 @@ use List::Util qw(first max);
 use List::MoreUtils qw(uniq);
 use JSON;
 use Capture::Tiny 'capture';
-use Data::Dumper;
 
 sub run
 {

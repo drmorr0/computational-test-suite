@@ -10,53 +10,57 @@ REQUIREMENTS:
 	sudo perl -MCPAN -e "install Parallel::Loops"
 	sudo perl -MCPAN -e "install Capture::Tiny"
 	sudo perl -MCPAN -e "install JSON"
- * I recommend that you use Git with your software; the CTS will work without
-   it, but it will complain.  If you have Git installed and your software is in
-   a git repo, the commit message and hash id will be recorded.
+ * I recommend that you use Git with your software; the CTS will work
+   without it, but it will complain.  If you have Git installed and your
+   software is in a git repo, the commit message and hash id will be
+   recorded.
 
 USAGE:
- The computational testing framework provides a unified framework for performing
- a large number of computational tests on a database of problems.  It is broken
- up into three parts, described in detail below:
-	- Initialization: This part of the software reads in a bunch of parameters,
-	  including directory paths and instance-specific details.  It initializes
-	  the data output directory, and runs some checks to make sure that your
-	  code is compiled and up-to-date, and is checked into the Git repository.
-	  Problem instances can be specified in a file as the first argument to the
-	  CTS; otherwise, it will assume that all files in the specified instance
-	  directory are instances to run the solver on.
-	- Command setup: This software determines all of the different tests (or
-	  commands) that will be run in this experiment.  Each test is represented
-	  by a single command that calls the solver with some optional arguments.
-	  The user can input a number of different commands that they would like to
-	  run for each instance, and can also specify a random seed and a number of
-	  trials to be performed for each instance.  The software will run that
-	  number of trials for each different combination of parameters.
-	- Running the experiments: Each specified command will be run.  Commands are
-	  split across the desired number of threads using the Parallel::Loops
-	  package.  The output from the commands are saved into the experiment
-	  output directory.
-	- Data parsing: the software should output a valid JSON object string of the
-	  form { "param1":value, "param2":value, "param3:value } in between text
-	  reading DATA_START...DATA_END.  This JSON string will be parsed by the CTS
-	  and stored in a hash table that is associated with the name of the
-	  instance.  If multiple different experiments are run on the same instance,
-	  the solver will aggregate all data about that instance into this hash
-	  table.
-	- Data output: currently all data is output in an ordered format into a CSV
-	  file.  You can optionally provide your own output writing function.  Plans
-	  are to make this more extensible in the future.
+ The computational testing framework provides a unified framework for
+ performing a large number of computational tests on a database of
+ problems.  It is broken up into three parts, described in detail below:
+	- Initialization: This part of the software reads in a bunch of
+	  parameters, including directory paths and instance-specific
+	  details.  It initializes the data output directory, and runs some
+	  checks to make sure that your code is compiled and up-to-date, and
+	  is checked into the Git repository.  Problem instances can be
+	  specified in a file as the first argument to the CTS; otherwise,
+	  it will assume that all files in the specified instance directory
+	  are instances to run the solver on.
+	- Command setup: This software determines all of the different tests
+	  (or commands) that will be run in this experiment.  Each test is
+	  represented by a single command that calls the solver with some
+	  optional arguments.  The user can input a number of different
+	  commands that they would like to run for each instance, and can
+	  also specify a random seed and a number of trials to be performed
+	  for each instance.  The software will run that number of trials
+	  for each different combination of parameters.
+	- Running the experiments: Each specified command will be run.
+	  Commands are split across the desired number of threads using the
+	  Parallel::Loops package.  The output from the commands are saved
+	  into the experiment output directory.
+	- Data parsing: the software should output a valid JSON object
+	  string of the form { "param1":value, "param2":value, "param3:value
+	  } in between text reading DATA_START...DATA_END.  This JSON string
+	  will be parsed by the CTS and stored in a hash table that is
+	  associated with the name of the instance.  If multiple different
+	  experiments are run on the same instance, the solver will
+	  aggregate all data about that instance into this hash table.
+	- Data output: currently all data is output in an ordered format
+	  into a CSV file.  You can optionally provide your own output
+	  writing function.  Plans are to make this more extensible in the
+	  future.
 
 CONFIGURATION:
- The software stores a number of configuration files so that you can repeat the
- same experiment in the future.  These config files are stored by default in the
- .test directory where the CTS is run from, but you can specify a different
- location with command-line arguments
+ The software stores a number of configuration files so that you can
+ repeat the same experiment in the future.  These config files are
+ stored by default in the .test directory where the CTS is run from, but
+ you can specify a different location with command-line arguments
 
 HOOKS:
- (NOT CURRENTLY IMPLEMENTED) The CTS has a number of hook locations that you can
- use to write additional data processing, parsing, and configuration utilities.
- More details on this to come.
+ (NOT CURRENTLY IMPLEMENTED) The CTS has a number of hook locations that
+ you can use to write additional data processing, parsing, and
+ configuration utilities.  More details on this to come.
 
 
 

@@ -47,7 +47,7 @@ sub run
 		$cmd =~ s/__INST_\{(.*?)\}__/$data{'inst',$1,'filename'}/g;
 		my $inst_name = $1;
 		$data{'task', $id, 'instance'} = $inst_name;
-		$data{'task', $id, 'seed'} = get_seed();
+		$data{'task', $id, 'seed'} = &get_seed();
 		$cmd =~ s/__SEED__/$data{'task', $id, 'seed'}/g;
 
 		# Add an entry into the readme file

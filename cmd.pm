@@ -107,6 +107,10 @@ sub setup_cmds
 		Set::CrossProduct->new([\@task_list, \@instances])->combinations;
 
 	@task_list = (@task_list) x $num_tests_per;
+	
+	# Fill in random seeds (this is somewhat clunky, but it doesn't appear to work inside the
+	# parallel loop... TODO)
+	@task_list = map { my $seed = get_seed(); s/__SEED__/$seed/g; $_ } @task_list;
 
 	# process_hooks('post_cmd');
 }

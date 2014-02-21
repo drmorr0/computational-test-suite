@@ -94,17 +94,21 @@ sub setup_cmds
 	# Each task needs a data output order which is independent of some substitutions (instance name
 	# and seed by default).  Rather than storing this in a separate data structure and try to do
 	# complicated lookups, we just prepend the order onto the task string before doing any
-	# order-independent substitutions
-	my $i = 0; @task_list = map { '__ORDER_'.$i++."__ $_" } @task_list;
+	# order-independent substitutions.  We also store the order in the data hash so it can be output
+	my $i = 0;
+	foreach my $task (@task_list)
+	{
+		$data{'order', $task} = $i;
+		$task = '__ORDER_'.$i++."__ $task";
+	}
 
 	# Fill in each of the instance keys in the command strings
 	@task_list = map { $_->[0] =~ s/__INST__/__INST_\{$_->[1]\}__/g; $_->[0] } 
-		Set::CrossProduct->new([\@task_list, \@inst_keys])->combinations;
+		Set::CrossProduct->new([\@task_list, \@instances])->combinations;
 
 	@task_list = (@task_list) x $num_tests_per;
 
 	# process_hooks('post_cmd');
-	exit;
 }
 
 # Read in the command string from the user

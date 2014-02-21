@@ -162,7 +162,7 @@ sub load_instances
 			/^(.*?)(,(.*))?$/ or die "Invalid instance file format"; 
 			my $inst_key = $1;
 			my $inst_meta = $3; trim $inst_meta;
-			$inst_data{$inst_key, 'meta'} = $inst_meta;
+			$data{'inst', $inst_key, 'meta'} = $inst_meta;
 
 			# Find a file in the instance directory that matches the instance name.
 			# If more than one file matches, use the first one
@@ -177,8 +177,8 @@ sub load_instances
 				print "WARNING: Could not find file matching $inst_key in $inst_dir; ignoring.\n";
 				next;
 			}
-			$inst_data{$inst_key, 'filename'} = $matching_instance_names[0];
-			push @inst_keys, $inst_key;
+			$data{'inst', $inst_key, 'filename'} = $matching_instance_names[0];
+			push @instances, $inst_key;
 		}
 		close INST;
 	}
@@ -195,11 +195,12 @@ ALL_FILES:
 		while (readdir INST_DIR)
 		{
 			next if (/^\./);
-			$inst_data{$_, 'filename'} = $_;
-			push @inst_keys, $_;
+			$data{'inst', $_, 'filename'} = $_;
+			push @instances, $_;
 		}
 		closedir INST_DIR;
 	}
+	sort @instances;
 }
 
 # Open and write initial information to the README/DATA files
@@ -224,10 +225,10 @@ sub init_readme_and_data_files
 	else { print $readmefp "\n$gitlog\n"; }
 	print "\n";
 
-	if ($inst_dir != -1)
+	if ($inst_dir ne -1)
 	{
 		print $readmefp "Running on instances from $inst_dir:\n";
-		foreach (@inst_keys)
+		foreach (@instances)
 			{ print $readmefp "  $_\n"; }
 	}
 	print $readmefp "Saving data to $exp_dir\n";

@@ -12,16 +12,18 @@ use warnings;
 use Exporter;
 use List::Util 'first';
 
+# Set the separator for hash keys
+$; = '!!';
+
 our @ISA = 'Exporter';
 our @EXPORT = qw($config_dir $config_file $base_dir $inst_dir $data_dir $exec_dir $exec $exp_name 
 	$exp_dir $readme_name $data_name $readmefp $datafp $num_threads &trim &prompt &create_dir
-	$cmd_file $inst_file @inst_keys @task_list %data &get_seed $write_func_name
-	$annotation $always_say_yes @output_metadata $out_extn $data_extn $num_tests_per
-	%inst_data);
+	$cmd_file $inst_file @instances @task_list %data &get_seed $write_func_name
+	$annotation $always_say_yes $out_extn $data_extn $num_tests_per);
 
 our ($config_dir, $config_file, $cmd_file);
 our ($base_dir, $inst_dir, $inst_file, $data_dir, $exec_dir, $exec);
-our (@inst_keys, %inst_data);
+our @instances;
 our ($exp_name, $exp_dir, $num_exp);
 our ($data_extn, $out_extn) = ('cts', 'out');
 our $readme_name = 'README';
@@ -32,7 +34,6 @@ our (@task_list, %data);
 our $write_func_name = "write_data_CSV";
 our $annotation = '';
 our $always_say_yes = 0;
-our @output_metadata;
 our $num_tests_per = -1;
 
 sub trim

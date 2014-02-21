@@ -18,26 +18,38 @@ use List::Util qw(first max);
 use List::MoreUtils qw(uniq);
 use JSON;
 use Capture::Tiny 'capture';
+use Data::Dumper;
 
 sub run
 {
 	my $pl = Parallel::Loops->new($num_threads);
-	my @local_data = ();
-	my @column_headings = ();
-	$pl->share(\@local_data, \@column_headings);
+	$pl->share(\%data);
 
 	# Run each command in parallel; dump the resulting data into the local_data array;
 	# we'll sort it out after we're all done; since this is being done in parallel, we
 	# have to lock output streams before we write to them
 	$pl->foreach(\@task_list, sub
 	{	
-		# process_hooks('pre_run');
-
-		my $cmd = $_;
+		my $task = $_;
 
 		# Find the id of this command
-		my $id = first { $task_list[$_] eq $cmd } 0..$#task_list;
+		my $id = first { $task_list[$_] eq $task } 0..$#task_list;
 		
+		# process_hooks('pre_run', {'cmd' => $task});
+
+		# Get the data order for this command
+		/__ORDER_(\d+?)__ (.*)/ or die "Invalid command format";
+		my $order = $1;
+		$data{'task', $id, 'order'} = $order;
+		my $cmd = $2;
+
+		# Slot in the appropriate instance filename and random seed
+		$cmd =~ s/__INST_\{(.*?)\}__/$data{'inst',$1,'filename'}/g;
+		my $inst_name = $1;
+		$data{'task', $id, 'instance'} = $inst_name;
+		$data{'task', $id, 'seed'} = get_seed();
+		$cmd =~ s/__SEED__/$data{'task', $id, 'seed'}/g;
+
 		# Add an entry into the readme file
 		my $start_time = localtime;
 		flock $readmefp, LOCK_EX;
@@ -46,7 +58,7 @@ sub run
 
 		# Progress notification to STDOUT
 		flock STDOUT, LOCK_EX;
-		print "Starting $id: $exec $cmd\n";
+		print "Starting task $id: $exec $cmd\n";
 		flock STDOUT, LOCK_UN;
 
 		# Run the command
@@ -72,16 +84,16 @@ sub run
 
 		# Write the raw output to a file
 		my $id_length = length($#task_list);
-		my $inst_name = $output_metadata[$id]{'name'};
-		my $inst_order = $output_metadata[$id]{'order'};
 		my $output_filename = sprintf("$inst_name.%0$id_length"."d.$out_extn", $id);
 		
-		open OUTPUT, ">>$exp_dir/$output_filename";
+		open OUTPUT, ">>$exp_dir/$output_filename" or die("Could not write to
+			$exp_dir/$output_filename\n");
 		flock OUTPUT, LOCK_EX;
 		print OUTPUT "----------\n";
 		print OUTPUT "[job $id]: $exec $cmd\n";
-		print OUTPUT '$output_metadata['.$id.']{\'name\'} = '.$inst_name."\n";
-		print OUTPUT '$output_metadata['.$id.']{\'order\'} = '.$inst_order."\n";
+		print OUTPUT '$data{\'task\','.$id.',\'instance\'} = '.$inst_name."\n";
+		print OUTPUT '$data{\'task\','.$id.',\'order\'} = '.$order."\n";
+		print OUTPUT '$data{\'task\','.$id.',\'seed\'} = '.$data{'task',$id,'seed'}."\n";
 		print OUTPUT "----------\n";
 		print OUTPUT $output;
 		print OUTPUT "----------\n";
@@ -96,30 +108,14 @@ sub run
 
 		# Look for data in a JSON format to parse
 		my %from_json = parse_output($id, $output);
-		push @column_headings, keys %from_json;
 
-		# Store the processed data in the local array
-		push @local_data, [ ($inst_name, $inst_order, %from_json) ];
+		foreach my $key (keys %from_json)
+			{ $data{'task',$id,$inst_name,$order,$key} = $from_json{$key}; }
 
 		# process_hooks('post_run');
 	});
 
-	# Now we're not inside a parallel loop any more so we can dump the data into the data hash table
-	# The structure of this table is complicated, and perhaps should be simplified in the future.
-	# For right now, it's a 3D table.  The first dimension is indexed by instance name.  The second
-	# dimension tells what order things should be written out in ('init' is always first, followed
-	# by the numbers 0,...,max).  The third dimension is the headings gotten from the JSON output
-	# from the program, and are interpreted as column headings
-	my $max_order_num = -1;
-	foreach my $entry (@local_data)
-	{
-		($name, $order, %from_json) = @{$entry};
-		$data{$name}{$order} = { %from_json };
-		if ($order > $max_order_num) { $max_order_num = $order; }
-	}
-	@column_headings = uniq @column_headings;
-
-	&{$write_func_name}($max_order_num, @column_headings);
+	&{$write_func_name}();
 }
 
 sub parse
@@ -183,15 +179,37 @@ sub parse_output
 # Write the data to a CSV file
 sub write_data_CSV
 {
-	my ($max_exp_num, @columns) = @_;
-	$columns = sort @columns;
-	my @instances = sort keys %data;
+	my @tasks = grep /task$;.*$;.*$;.*/, keys %data;
+	my %columns;
+	foreach (@tasks)
+	{
+		if (/task$;.*$;.*$;(.*)/)
+			{ $columns{$1} = 1; }
+	}	
 
-	# First write the column headings
+	my @columns = sort keys %columns;
+	my @order = sort { $data{$a} <=> $h{$b} } grep /order$;.*/, keys %data;
+
+	# First, print out the order of the experiments
+	foreach (@order)
+	{
+		if (/order$;(.*)/)
+		{ 
+			$clean = $1; 
+			$clean =~ s/__INST__//g;
+			$clean =~ s/__SEED__//g;
+			trim $clean;
+			foreach (1 .. $num_tests_per)
+				{ print $datafp "$clean, "; }
+		}
+	}
+	print $datafp "\n";
+
+	# Next, write the column headings
 	print $datafp "Instance, ";
 	foreach my $col_name (@columns)
 	{
-		foreach my $i (0 .. $max_exp_num)
+		foreach my $i (0 .. $#order)
 		{
 			print $datafp "$col_name, ";
 		}
@@ -203,17 +221,18 @@ sub write_data_CSV
 	foreach my $instance (@instances)
 	{
 		print $datafp "$instance, ";
-		foreach my $i (0 .. $#{$data{$instance}{'init'}})
-			{ print $datafp "$data{$instance}{'init'}[$i], "; }
-	
+
+		if ($data{'inst', $instance, 'meta'})
+			{ print $datafp $data{'inst', $instance, 'meta'}; }
 		foreach my $column (@columns)
 		{
-			foreach my $i (0 .. $max_exp_num)
-			{
-				print $datafp "$data{$instance}{$i}{$column}, ";
+			foreach my $i (0 .. $#order)
+			{ 
+				foreach my $key (grep /task$;\d+?$;$instance$;$i$;$column/, keys %data)
+					{ print $datafp "$data{$key}, "; }
 			}
 		}
-	
+
 		print $datafp "\n";
 	}
 }

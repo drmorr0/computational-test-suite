@@ -118,50 +118,11 @@ sub run
 	&{$write_func_name}();
 }
 
-sub parse
-{
-	open $datafp, ">$exp_dir/$data_name.$data_extn" or die("Could not open $exp_dir/$data_name.$data_extn for writing");
-	opendir DATADIR, $exp_dir or die("Could not open $exp_dir for reading");
-	my @datafiles = grep /.*\.$out_extn/, readdir DATADIR;
-	my @column_headings;
-	my $max_order_num = -1;
-	foreach (@datafiles)
-	{
-		if (!/.*\.(\d+)\.$out_extn/) { die ("Invalid output file"); }
-		my $job_id = $1;
-
-		local $/;
-		open DATAFILE, "$exp_dir/$_" or die "Could not open file $exp_dir/$_";
-		my $output = <DATAFILE>;
-		if (!($output =~ /output_metadata.*{'name'} = (.*)/)) 
-			{ die "Invalid output file format"; }
-		my $inst_name = $1;
-		if (!($output =~ /output_metadata.*{'order'} = (\d+)/)) 
-			{ die "Invalid output file format"; }
-		my $order = $1;
-
-		$output_metadata[$id] = { 'name' => $inst_name, 'order' => $order };
-
-		my %from_json = parse_output($id, $output);
-		$data{$inst_name}{$order} = { %from_json };
-		push @column_headings, keys %from_json;
-		if ($order > $max_order_num) { $max_order_num = $order; }
-		close DATAFILE;
-	}
-	close DATADIR;
-	@column_headings = uniq @column_headings;
-
-	&{$write_func_name}($max_order_num, @column_headings);
-}
-
 sub parse_output
 {
 	($id, $output) = @_;
 	# process_hooks('pre_parse');
 	
-	my $order = $output_metadata[$id]{'order'};
-	my $inst_name = $output_metadata[$id]{'name'};
-
 	my @json = $output =~ /(?s)\bDATA_START\b(.*?)\bDATA_END\b/g;
 
 	my $json_data;

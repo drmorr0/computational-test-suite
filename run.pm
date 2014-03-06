@@ -21,6 +21,7 @@ use Capture::Tiny 'capture';
 
 sub run
 {
+	if (prompt("This will run ".scalar @task_list." tests.  Ok? ", qw(y q)) ne 'y') { exit; }
 	my $pl = Parallel::Loops->new($num_threads);
 	$pl->share(\%data);
 

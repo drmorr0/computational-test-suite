@@ -42,7 +42,7 @@ our @substitutions = (
 # with an element from $slot_values[$i].  If $slot_values[$i] is an array, we run a different
 # experiment with each entry from the array
 our $command;
-our @slots;
+our @slots = ( ['__DUMMY__'] );
 
 sub setup_cmds 
 {
@@ -55,7 +55,7 @@ sub setup_cmds
 	# loop through all of the substitution strings and try to apply them as many times as possible.
 	# Each time we apply one, we also call the appropriate function.  The function should return a
 	# value or an array that we can fill into @slots
-	my $slot_ind = 0;
+	my $slot_ind = 1;
 	foreach my $subs_string (@substitutions)
 	{
 		my $subs_regex = $subs_string->[0];

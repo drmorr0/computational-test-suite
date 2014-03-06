@@ -161,8 +161,13 @@ sub load_instances
 		{
 			/^(.*?)(,(.*))?$/ or die "Invalid instance file format"; 
 			my $inst_key = $1;
-			my $inst_meta = $3; trim $inst_meta;
-			$data{'inst', $inst_key, 'meta'} = $inst_meta;
+			my $inst_meta = $3; 
+			
+			if ($inst_meta)
+			{
+				trim $inst_meta;
+				$data{'inst', $inst_key, 'meta'} = $inst_meta;
+			}
 
 			# Find a file in the instance directory that matches the instance name.
 			# If more than one file matches, use the first one
